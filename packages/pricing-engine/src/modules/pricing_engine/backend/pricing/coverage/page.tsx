@@ -15,12 +15,7 @@ import {
   TableRow,
 } from '@open-mercato/ui/primitives/table'
 import type { CoverageItem, CoverageResponse } from '../../../lib/frontend/quoteTypes'
-
-const CONFIDENCE_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  measured: 'default',
-  estimated: 'secondary',
-  default: 'outline',
-}
+import { ConfidenceBadge } from '../../../components/ConfidenceBadge'
 
 // Deliberately unflattering: a component with no real data source must be visibly worse on this
 // screen than one that has measurements behind it.
@@ -100,9 +95,7 @@ export default function PricingCoveragePage() {
                       {item.sourceRef ? <div className="text-xs">{item.sourceRef}</div> : null}
                     </TableCell>
                     <TableCell className="py-3 pr-4">
-                      <Badge variant={CONFIDENCE_VARIANT[item.confidence] ?? 'outline'}>
-                        {t(`pricing_engine.confidence.${item.confidence}`, item.confidence)}
-                      </Badge>
+                      <ConfidenceBadge confidence={item.confidence} />
                     </TableCell>
                     <TableCell className="py-3">
                       <Badge variant={item.implemented ? 'default' : 'outline'}>

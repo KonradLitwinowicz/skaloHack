@@ -9,9 +9,23 @@ import {
   toDecimal,
   ZERO,
 } from '../decimal'
+import type { Decimal } from '../decimal'
 import type { ComponentComputeArgs, ComponentResult, PriceComponent } from '../types'
 
 export const GUARDRAILS_CODE = 'guardrails'
+
+/**
+ * margin = (price - cost) / price  =>  price_min = cost / (1 - margin/100).
+ * Returns null at margin >= 100, where the equation has no finite solution.
+ *
+ * Exported so the advisor answers "lowest price still holding margin X" with the SAME formula the
+ * pipeline clamps with — a floor the engine would not honour is worse than no floor at all.
+ */
+export function minPriceForMargin(unitCostNet: Decimal, minMarginPercent: string): Decimal | null {
+  const denominator = sub(ONE, percentToFactor(minMarginPercent))
+  if (denominator <= ZERO) return null
+  return div(unitCostNet, denominator)
+}
 
 // Guardrails clamp rather than add or scale. They are reported as a multiplier so the waterfall
 // stays one consistent shape: 1.0000 means nothing was clamped, and any other value shows exactly
@@ -49,16 +63,11 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
     }
 
     if (guardrail.minMarginPercent !== null && unitCostNet > ZERO) {
-      // margin = (price - cost) / price  =>  price_min = cost / (1 - margin)
-      const marginFactor = percentToFactor(guardrail.minMarginPercent)
-      const denominator = sub(ONE, marginFactor)
-      if (denominator > ZERO) {
-        const minPrice = div(unitCostNet, denominator)
-        if (target < minPrice) {
-          target = minPrice
-          applied = 'min_margin'
-          warnings.push('pricing_engine.warnings.minMarginEnforced')
-        }
+      const minPrice = minPriceForMargin(unitCostNet, guardrail.minMarginPercent)
+      if (minPrice !== null && target < minPrice) {
+        target = minPrice
+        applied = 'min_margin'
+        warnings.push('pricing_engine.warnings.minMarginEnforced')
       }
     }
   }

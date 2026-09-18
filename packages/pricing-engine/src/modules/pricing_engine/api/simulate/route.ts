@@ -10,7 +10,11 @@ export const metadata = {
 // A what-if must never pollute the audit ledger, so this route runs the identical pipeline with
 // persistence off rather than writing and deleting.
 export async function POST(req: Request): Promise<Response> {
-  return handleQuoteRequest(req, { persist: false, triggeredBy: 'simulate' })
+  return handleQuoteRequest(req, {
+    persist: false,
+    triggeredBy: 'simulate',
+    schema: simulateRequestSchema,
+  })
 }
 
 export const openApi: OpenApiRouteDoc = {

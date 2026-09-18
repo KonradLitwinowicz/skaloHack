@@ -3,9 +3,14 @@ import { z } from 'zod'
 import { CrudHttpError, isCrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { readJsonSafe } from '@open-mercato/shared/lib/http/readJsonSafe'
 import { createLogger } from '@open-mercato/shared/lib/logger'
-import { quoteRequestSchema } from '../../data/validators'
+import {
+  quoteRequestSchema,
+  type QuoteRequest,
+  type SimulateRequest,
+} from '../../data/validators'
 import {
   SupplierProfileMissingError,
+  type PriceOverrides,
   type PricingService,
   type QuoteOptions,
 } from '../../services/pricingService'
@@ -14,7 +19,7 @@ import { resolvePricingRouteContext } from './context'
 
 const logger = createLogger('pricing_engine')
 
-function serialize(result: PricingQuoteResult) {
+export function serializeQuoteResult(result: PricingQuoteResult) {
   return {
     calculationId: result.calculationId,
     currencyCode: result.currencyCode,
@@ -41,14 +46,27 @@ function serialize(result: PricingQuoteResult) {
   }
 }
 
+export type QuoteRequestHandlerOptions = {
+  persist: boolean
+  triggeredBy: QuoteOptions['triggeredBy']
+  // `/pricing/simulate` documents an `overrides` object that `quoteRequestSchema` does not declare,
+  // and zod strips undeclared keys: parsing every call with the quote schema silently discarded the
+  // what-if and answered 200 with the unchanged price. Each route now passes its own schema.
+  schema?: z.ZodType<QuoteRequest | SimulateRequest>
+}
+
+function readOverrides(parsed: QuoteRequest | SimulateRequest): PriceOverrides | undefined {
+  return 'overrides' in parsed ? parsed.overrides : undefined
+}
+
 export async function handleQuoteRequest(
   req: Request,
-  options: { persist: boolean; triggeredBy: QuoteOptions['triggeredBy'] },
+  options: QuoteRequestHandlerOptions,
 ): Promise<Response> {
   try {
     const ctx = await resolvePricingRouteContext(req)
     const payload = await readJsonSafe(req, {})
-    const parsed = quoteRequestSchema.parse(payload)
+    const parsed = (options.schema ?? quoteRequestSchema).parse(payload)
 
     const missingProductId = parsed.lines.find((line) => !line.productId)
     if (missingProductId) {
@@ -87,18 +105,25 @@ export async function handleQuoteRequest(
       persist: options.persist,
       triggeredBy: options.triggeredBy,
       triggeredByUserId: ctx.userId,
+      overrides: readOverrides(parsed),
     })
 
-    return NextResponse.json(serialize(result))
+    return NextResponse.json(serializeQuoteResult(result))
   } catch (err) {
-    if (isCrudHttpError(err)) return NextResponse.json(err.body, { status: err.status })
-    if (err instanceof SupplierProfileMissingError) {
-      return NextResponse.json({ error: 'pricing_engine.errors.supplierProfileMissing' }, { status: 409 })
-    }
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: 'pricing_engine.errors.invalidInput' }, { status: 400 })
-    }
-    logger.error('Pricing quote failed', { error: err })
-    return NextResponse.json({ error: 'pricing_engine.errors.quoteFailed' }, { status: 500 })
+    return toPricingErrorResponse(err, 'Pricing quote failed')
   }
+}
+
+// One error contract for every pipeline-backed route: the advise route answers with the same
+// statuses and the same translation keys as quote and simulate.
+export function toPricingErrorResponse(err: unknown, logMessage: string): Response {
+  if (isCrudHttpError(err)) return NextResponse.json(err.body, { status: err.status })
+  if (err instanceof SupplierProfileMissingError) {
+    return NextResponse.json({ error: 'pricing_engine.errors.supplierProfileMissing' }, { status: 409 })
+  }
+  if (err instanceof z.ZodError) {
+    return NextResponse.json({ error: 'pricing_engine.errors.invalidInput' }, { status: 400 })
+  }
+  logger.error(logMessage, { error: err })
+  return NextResponse.json({ error: 'pricing_engine.errors.quoteFailed' }, { status: 500 })
 }

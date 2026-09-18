@@ -2,6 +2,7 @@ import { asFunction, asValue } from 'awilix'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 import { createPricingService } from './services/pricingService'
+import { createPricingAdvisorService } from './services/pricingAdvisorService'
 import {
   PricingCalculation,
   PricingCalculationLine,
@@ -37,6 +38,13 @@ export function register(container: AppContainer) {
     // `packages/core/src/__tests__/di-classic-proxy.test.ts` enforces this across every module.
     pricingService: asFunction(({ em }: AppCradle) =>
       createPricingService({ em, container: container as unknown as { resolve: (name: string) => unknown } }),
+    )
+      .scoped()
+      .proxy(),
+
+    // Same `.scoped().proxy()` contract as `pricingService` above, and for the same reason.
+    pricingAdvisorService: asFunction(({ em }: AppCradle) =>
+      createPricingAdvisorService({ em, container: container as unknown as { resolve: (name: string) => unknown } }),
     )
       .scoped()
       .proxy(),

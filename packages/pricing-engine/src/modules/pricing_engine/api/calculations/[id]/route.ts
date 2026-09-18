@@ -65,7 +65,7 @@ export async function GET(
 
     const lines = await em.find(
       PricingCalculationLine,
-      { calculationId: calculation.id, tenantId: ctx.tenantId },
+      { calculationId: calculation.id, tenantId: ctx.tenantId, organizationId: ctx.organizationId },
       { orderBy: { basketLineIndex: 'asc', position: 'asc' } },
     )
 

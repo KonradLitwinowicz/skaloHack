@@ -15,7 +15,15 @@ export type CatalogProductLike = {
   dimensions?: Record<string, unknown> | null
 }
 
+export type CatalogUnitConversionLike = {
+  unitCode: string
+  toBaseFactor: string
+  isActive?: boolean
+  product?: { id?: string } | null
+}
+
 type EntityClassLike = new (...args: never[]) => CatalogProductLike
+type ConversionClassLike = new (...args: never[]) => CatalogUnitConversionLike
 
 export type CatalogResolver = {
   tryResolve<T>(name: string): T | undefined
@@ -75,6 +83,29 @@ export async function loadCatalogSnapshot(
   const productById = new Map<string, CatalogProductLike>()
   for (const product of products as CatalogProductLike[]) productById.set(product.id, product)
 
+  // Packaging ladders come from `catalog_product_unit_conversions`, reached through the entity class
+  // catalog registers in DI — the same optional-peer seam as CatalogProduct above, never an ORM
+  // relation or a direct import. When catalog is absent, or older than the registration, the map
+  // stays empty and `packaging_cost` reports its own missing-source warning instead of guessing.
+  const conversionClass = tryResolve<ConversionClassLike>(container, 'CatalogProductUnitConversion')
+  const conversionsByProduct = new Map<string, Record<string, string>>()
+  if (conversionClass) {
+    const conversionRows = await em.find(conversionClass, {
+      product: { $in: uniqueIds },
+      tenantId: scope.tenantId,
+      organizationId: scope.organizationId,
+      isActive: true,
+      deletedAt: null,
+    } as never)
+    for (const row of conversionRows as CatalogUnitConversionLike[]) {
+      const owningProductId = row.product?.id
+      if (!owningProductId || !row.unitCode) continue
+      const ladder = conversionsByProduct.get(owningProductId) ?? {}
+      ladder[row.unitCode] = row.toBaseFactor
+      conversionsByProduct.set(owningProductId, ladder)
+    }
+  }
+
   for (const productId of uniqueIds) {
     const product = productById.get(productId) ?? null
     const purchase = purchaseByProduct.get(productId) ?? null
@@ -87,9 +118,7 @@ export async function loadCatalogSnapshot(
       weightValue: product?.weightValue ?? null,
       weightUnit: product?.weightUnit ?? null,
       dimensions: product?.dimensions ?? null,
-      // TODO(data-source): packaging units come from `catalog_product_unit_conversions`, wired in
-      // Step 2 together with `packaging_cost`. Empty here rather than guessed.
-      unitConversions: {},
+      unitConversions: conversionsByProduct.get(productId) ?? {},
       purchase,
     })
   }

@@ -1,0 +1,194 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -33,6 +33,7 @@
+ COPY packages/events/package.json ./packages/events/
+ COPY packages/gateway-stripe/package.json ./packages/gateway-stripe/
+ COPY packages/onboarding/package.json ./packages/onboarding/
++COPY packages/pricing-engine/package.json ./packages/pricing-engine/
+ COPY packages/queue/package.json ./packages/queue/
+ COPY packages/scheduler/package.json ./packages/scheduler/
+ COPY packages/search/package.json ./packages/search/
+@@ -108,6 +109,7 @@
+ COPY packages/events/package.json ./packages/events/
+ COPY packages/gateway-stripe/package.json ./packages/gateway-stripe/
+ COPY packages/onboarding/package.json ./packages/onboarding/
++COPY packages/pricing-engine/package.json ./packages/pricing-engine/
+ COPY packages/queue/package.json ./packages/queue/
+ COPY packages/scheduler/package.json ./packages/scheduler/
+ COPY packages/search/package.json ./packages/search/
+@@ -221,6 +223,7 @@
+ COPY --from=builder /app/packages/events/package.json ./packages/events/
+ COPY --from=builder /app/packages/gateway-stripe/package.json ./packages/gateway-stripe/
+ COPY --from=builder /app/packages/onboarding/package.json ./packages/onboarding/
++COPY --from=builder /app/packages/pricing-engine/package.json ./packages/pricing-engine/
+ COPY --from=builder /app/packages/queue/package.json ./packages/queue/
+ COPY --from=builder /app/packages/scheduler/package.json ./packages/scheduler/
+ COPY --from=builder /app/packages/search/package.json ./packages/search/
+--- a/eslint.ds.config.mjs
++++ b/eslint.ds.config.mjs
+@@ -104,4 +104,28 @@
+   //   files: ['packages/core/src/modules/audit_logs/backend/**/*.{ts,tsx}'],
+   //   rules: { 'om-ds/require-empty-state': 'error', 'om-ds/require-status-badge': 'error' },
+   // },
++  //
++  // New modules start strict: they carry no rollout debt, so every rule is `error`
++  // from the first commit (root AGENTS.md -> Module Rules). This block is NOT an
++  // escalation entry and is not governed by the two-consecutive-zero-runs rule above.
++  {
++    files: ['packages/pricing-engine/src/**/*.{ts,tsx}'],
++    ignores: ['**/__tests__/**', '**/*.generated.*', '**/dist/**'],
++    // `plugins` is required here, not inherited: flat config resolves a rule's
++    // plugin from a config object matching the same file. Without it, linting any
++    // `.ts` in this package (which no other block matches) aborts ESLint with
++    // "could not find plugin 'om-ds'" and takes the whole `yarn lint:ds` run down.
++    linterOptions,
++    languageOptions,
++    plugins,
++    rules: {
++      'om-ds/require-empty-state': 'error',
++      'om-ds/require-page-wrapper': 'error',
++      'om-ds/no-raw-table': 'error',
++      'om-ds/require-loading-state': 'error',
++      'om-ds/require-status-badge': 'error',
++      'om-ds/no-hardcoded-status-colors': 'error',
++      'om-ds/no-legacy-alert-variant': 'error',
++    },
++  },
+ ]
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -8106,6 +8106,7 @@
+     "@open-mercato/events": "workspace:*"
+     "@open-mercato/gateway-stripe": "workspace:*"
+     "@open-mercato/onboarding": "workspace:*"
++    "@open-mercato/pricing-engine": "workspace:*"
+     "@open-mercato/queue": "workspace:*"
+     "@open-mercato/scheduler": "workspace:*"
+     "@open-mercato/search": "workspace:*"
+@@ -8551,6 +8552,31 @@
+   languageName: unknown
+   linkType: soft
+ 
++"@open-mercato/pricing-engine@workspace:*, @open-mercato/pricing-engine@workspace:packages/pricing-engine":
++  version: 0.0.0-use.local
++  resolution: "@open-mercato/pricing-engine@workspace:packages/pricing-engine"
++  dependencies:
++    "@open-mercato/core": "workspace:*"
++    "@open-mercato/shared": "workspace:*"
++    "@open-mercato/ui": "workspace:*"
++    "@types/jest": "npm:^30.0.0"
++    "@types/react": "npm:^19.2.17"
++    "@types/react-dom": "npm:^19.2.3"
++    esbuild: "npm:^0.28.1"
++    glob: "npm:^13.0.6"
++    jest: "npm:^30.4.2"
++    react: "npm:19.2.8"
++    react-dom: "npm:19.2.8"
++    ts-jest: "npm:^29.4.12"
++    typescript: "npm:7.0.2"
++  peerDependencies:
++    "@mikro-orm/postgresql": ^7.0.14
++    "@open-mercato/shared": "workspace:*"
++    react: ^19.0.0
++    react-dom: ^19.0.0
++  languageName: unknown
++  linkType: soft
++
+ "@open-mercato/queue@workspace:*, @open-mercato/queue@workspace:packages/queue":
+   version: 0.0.0-use.local
+   resolution: "@open-mercato/queue@workspace:packages/queue"
+--- a/apps/mercato/package.json
++++ b/apps/mercato/package.json
+@@ -46,6 +46,7 @@
+     "@open-mercato/events": "workspace:*",
+     "@open-mercato/gateway-stripe": "workspace:*",
+     "@open-mercato/onboarding": "workspace:*",
++    "@open-mercato/pricing-engine": "workspace:*",
+     "@open-mercato/queue": "workspace:*",
+     "@open-mercato/scheduler": "workspace:*",
+     "@open-mercato/search": "workspace:*",
+--- a/apps/mercato/jest.config.cjs
++++ b/apps/mercato/jest.config.cjs
+@@ -27,6 +27,7 @@
+     '^@open-mercato/events/(.*)$': '<rootDir>/../../packages/events/src/$1',
+     '^@open-mercato/cli/(.*)$': '<rootDir>/../../packages/cli/src/$1',
+     '^@open-mercato/content/(.*)$': '<rootDir>/../../packages/content/src/$1',
++    '^@open-mercato/pricing-engine/(.*)$': '<rootDir>/../../packages/pricing-engine/src/$1',
+   },
+   transform: {
+     '^.+\\.(t|j)sx?$': [
+--- a/apps/mercato/src/modules.ts
++++ b/apps/mercato/src/modules.ts
+@@ -81,6 +81,9 @@
+   { id: 'attachments', from: '@open-mercato/core' },
+   { id: 'catalog', from: '@open-mercato/core' },
+   { id: 'sales', from: '@open-mercato/core' },
++  // MUST stay after `sales`: DI registrars run in this order, and pricing_engine decorates
++  // the `salesCalculationService` binding that `sales` registers.
++  { id: 'pricing_engine', from: '@open-mercato/pricing-engine' },
+   { id: 'warranty_claims', from: '@open-mercato/core' },
+   { id: 'wms', from: '@open-mercato/core' },
+   { id: 'api_keys', from: '@open-mercato/core' },
+@@ -164,6 +167,11 @@
+       },
+     },
+   },
++  // Wholesale-distributor workspace: the `distributor` role plus the manually-run HoReCa
++  // seeders. Listed after catalog / customers / auth / customer_accounts / pricing_engine
++  // because its seeders write into those modules' entities and its role grants reference
++  // their ACL features.
++  { id: 'distributor_workspace', from: '@app' },
+   { id: 'ratelimit_probe', from: '@app' },
+ ]
+ 
+--- a/packages/core/src/modules/catalog/di.ts
++++ b/packages/core/src/modules/catalog/di.ts
+@@ -2,7 +2,7 @@
+ import type { EventBus } from '@open-mercato/events'
+ import type { AppContainer } from '@open-mercato/shared/lib/di/container'
+ import { DefaultCatalogPricingService } from './services/catalogPricingService'
+-import { CatalogProduct, CatalogProductPrice } from './data/entities'
++import { CatalogProduct, CatalogProductPrice, CatalogProductUnitConversion } from './data/entities'
+ 
+ type AppCradle = AppContainer['cradle'] & {
+   eventBus?: EventBus | null
+@@ -17,5 +17,9 @@
+       .proxy(),
+     CatalogProduct: asValue(CatalogProduct),
+     CatalogProductPrice: asValue(CatalogProductPrice),
++    // Exposed for optional peers that need packaging ladders without an ORM relation into catalog
++    // (pricing_engine's `packaging_cost` resolves this class by name, the same seam it uses for
++    // CatalogProduct). Additive: no existing consumer changes.
++    CatalogProductUnitConversion: asValue(CatalogProductUnitConversion),
+   })
+ }
+--- a/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
++++ b/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
+@@ -158,7 +158,26 @@
+     // provenance entries and override targets to every render. The
+     // `warranty_claims` module (see above) lands alongside it, so the cap
+     // absorbs both additions.
+-    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_000_000)
++    //
++    // JSON cap raised a sixth time by the `pricing_engine` module
++    // (2026-09-18-pricing-engine-module): twenty entities, eight ACL features,
++    // twenty DI tokens, four events, four API routes and two backend pages cost
++    // 68.5KB of facts and provenance references (3,978,803 -> 4,047,325 bytes),
++    // measured by extracting with and without the package present. That is linear
++    // growth proportional to the module's surface, not the multiplicative blow-up
++    // this detector exists to catch. Markdown grew 24.9KB and directory markdown
++    // 26.5KB, both well inside their existing caps, so only this cap moves.
++    //
++    // JSON cap raised a seventh time by the pricing parameter screens and the
++    // distributor ordering portal: `pricing_engine` went from four API routes and
++    // two backend pages to fifteen routes and thirty-five pages, and
++    // `distributor_workspace` added three portal routes and one portal page.
++    // Facts and provenance grew 54.4KB for that (4,047,325 -> 4,103,039 bytes) —
++    // roughly 1.2KB a route/page, the same per-surface cost the sixth raise
++    // measured, so this is the linear growth the cap is meant to allow rather
++    // than the multiplicative blow-up it exists to catch. Markdown and directory
++    // markdown both stayed inside their caps, so again only this cap moves.
++    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_160_000)
+     expect(Buffer.byteLength(completeJson) - Buffer.byteLength(legacyJson)).toBeLessThan(1_800_000)
+     // Markdown cap raised with the source-link contract: entities, events, ACL
+     // features, DI tokens, search entities, notifications, UMES hosts and UMES
