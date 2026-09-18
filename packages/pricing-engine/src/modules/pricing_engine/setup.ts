@@ -3,16 +3,26 @@ import type { ModuleSetupConfig } from '@open-mercato/shared/modules/setup'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import {
   PricingCoverageEntry,
+  PricingDeliveryZone,
+  PricingFuelPrice,
   PricingGuardrail,
   PricingLaborRate,
   PricingOrderScenario,
+  PricingPackagingCost,
   PricingProcessStep,
   PricingPurchasePosition,
   PricingSupplierProfile,
+  PricingVehicle,
+  PricingWarehouseCost,
 } from './data/entities'
 import { tryResolve } from './lib/catalog'
 import {
   COVERAGE_SEED,
+  DEMO_DELIVERY_ZONES,
+  DEMO_FUEL_PRICES,
+  DEMO_PACKAGING_COSTS,
+  DEMO_VEHICLES,
+  DEMO_WAREHOUSE_COST,
   DEMO_DEFAULT_TARGET_MARKUP,
   DEMO_GUARDRAIL,
   DEMO_LABOR_RATES,
@@ -123,6 +133,45 @@ async function seedParameterRows(em: EntityManager, scope: Scope): Promise<void>
   }
 }
 
+async function seedLogisticsRows(em: EntityManager, scope: Scope): Promise<void> {
+  if ((await em.count(PricingPackagingCost, { ...scope, deletedAt: null })) === 0) {
+    for (const row of DEMO_PACKAGING_COSTS) {
+      em.persist(em.create(PricingPackagingCost, { ...scope, ...row, validFrom: EPOCH, isDemo: true }))
+    }
+  }
+
+  if ((await em.count(PricingWarehouseCost, { ...scope, deletedAt: null })) === 0) {
+    em.persist(
+      em.create(PricingWarehouseCost, {
+        ...scope,
+        ...DEMO_WAREHOUSE_COST,
+        validFrom: EPOCH,
+        isDemo: true,
+      }),
+    )
+  }
+
+  if ((await em.count(PricingVehicle, { ...scope, deletedAt: null })) === 0) {
+    for (const row of DEMO_VEHICLES) {
+      em.persist(em.create(PricingVehicle, { ...scope, ...row, isActive: true, isDemo: true }))
+    }
+  }
+
+  if ((await em.count(PricingDeliveryZone, { ...scope, deletedAt: null })) === 0) {
+    for (const row of DEMO_DELIVERY_ZONES) {
+      em.persist(em.create(PricingDeliveryZone, { ...scope, ...row, isDemo: true }))
+    }
+  }
+
+  if ((await em.count(PricingFuelPrice, { ...scope, deletedAt: null })) === 0) {
+    for (const row of DEMO_FUEL_PRICES) {
+      em.persist(
+        em.create(PricingFuelPrice, { ...scope, ...row, observedOn: EPOCH, isDemo: true }),
+      )
+    }
+  }
+}
+
 async function seedCoverage(em: EntityManager, scope: Scope): Promise<void> {
   for (const entry of COVERAGE_SEED) {
     const existing = await em.findOne(PricingCoverageEntry, {
@@ -215,6 +264,7 @@ export const setup: ModuleSetupConfig = {
     const scope = { tenantId, organizationId }
     await ensureSupplierProfile(em, scope)
     await seedParameterRows(em, scope)
+    await seedLogisticsRows(em, scope)
     await seedCoverage(em, scope)
     await em.flush()
   },

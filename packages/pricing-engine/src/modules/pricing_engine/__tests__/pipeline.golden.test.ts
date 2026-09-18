@@ -11,22 +11,45 @@ describe('pricing pipeline golden cases', () => {
     const result = await runPipeline(context, implementedComponents, buildDeps())
     const line = result.lines[0]
 
-    // Verified by hand: purchase cost 20.0000; handling 16.0125 PLN on the line
-    // (intake 3.6295 + dispatch 3.9040 + invoicing 4.5750 + picking 2.4400 + packing 1.4640)
-    // spread over 24 units = 0.6672; 20.6672 x 1.66 markup = 34.3076, rounded to 34.3100.
-    expect(line.unitCostNet).toBe('20.6672')
-    expect(line.unitPriceNet).toBe('34.3100')
-    expect(line.totalPriceNet).toBe('823.4400')
-    // Slightly above the configured 66% because rounding to the grosz moves the price up.
-    expect(line.markupPercent).toBe('66.0118')
-    expect(line.marginPercent).toBe('39.7633')
+    // Verified by hand, component by component:
+    //   product_cost          20.0000  purchase cost, no rebate tier on this fixture
+    //   operational_cost_base  0.6672  16.0125 on the line (intake 3.6295 + dispatch 3.9040 +
+    //                                  invoicing 4.5750 + picking 2.4400 + packing 1.4640) / 24
+    //   packaging_cost         0.3152  0.12 material + 0.2/60 x 58.56 loaded warehouse rate
+    //   warehouse_cost         0.7654  space 0.6175 (5.2 kg / 800 kg slot x 95.00 x 30/30)
+    //                                  + capital 0.1479 (20.0000 x 9%/yr x 30/365)
+    //                                  NOTE the capital base is the 20.0000 purchase cost, NOT the
+    //                                  21.08 accumulated so far — frozen capital finances goods.
+    //   logistics_cost         0.0000  this fixture carries no delivery zone, so the engine
+    //                                  refuses to invent a distance and warns instead
+    //   product_aspects        1.0000  5.2 kg is under the threshold and no dimensions on record
+    //   target_margin         x1.6600  cost 21.7478 x 1.66 = 36.1013
+    //   rounding              -0.0013  down to the grosz
+    expect(line.unitCostNet).toBe('21.7478')
+    expect(line.unitPriceNet).toBe('36.1000')
+    expect(line.totalPriceNet).toBe('866.4000')
+    // A hair under the configured 66% because rounding moved the price down, not up.
+    expect(line.markupPercent).toBe('65.9938')
+    expect(line.marginPercent).toBe('39.7568')
     expect(line.breakdown.map((component) => component.code)).toEqual([
       'product_cost',
       'operational_cost_base',
+      'packaging_cost',
+      'warehouse_cost',
+      'logistics_cost',
+      'product_aspects',
       'target_margin',
       'guardrails',
       'rounding',
     ])
+    // Every gap is disclosed rather than silently defaulted.
+    expect(line.warnings).toEqual(
+      expect.arrayContaining([
+        'pricing_engine.warnings.packagingConversionsMissing',
+        'pricing_engine.warnings.warehouseTurnoverAssumed',
+        'pricing_engine.warnings.deliveryZoneMissing',
+      ]),
+    )
   })
 
   it('charges more for the same line ordered by phone', async () => {

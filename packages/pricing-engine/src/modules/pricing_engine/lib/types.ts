@@ -224,6 +224,10 @@ export type ComponentComputeArgs = {
   quantity: Decimal
   runningUnitValue: Decimal
   unitCostNet: Decimal
+  // Each already-executed component's own contribution, keyed by code. `unitCostNet` is the
+  // running total of all of them, which is the wrong base for anything that needs one specific
+  // earlier figure — frozen capital finances the goods, not the labour not yet spent on them.
+  componentValues: Readonly<Record<string, string>>
   deps: ComponentDeps
 }
 

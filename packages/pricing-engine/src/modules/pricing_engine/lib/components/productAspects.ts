@@ -1,4 +1,4 @@
-import { gt, isZero, money, mul, ONE, sub, toDecimal } from '../decimal'
+import { gt, isZero, money, mul, ONE, sub, toDecimal, ZERO } from '../decimal'
 import type { Decimal } from '../decimal'
 import type {
   ComponentComputeArgs,
@@ -8,6 +8,10 @@ import type {
 } from '../types'
 
 export const PRODUCT_ASPECTS_CODE = 'product_aspects'
+
+// Widest surcharge a single aspect may apply. A configured factor outside (0, MAX] is treated as
+// a configuration error, not as an instruction to zero or invert the price.
+const MAX_ASPECT_FACTOR = toDecimal('5')
 
 // Assumed surcharges, in the spirit of lib/seedDefaults.ts: a distributor that has never measured
 // its handling premium still gets a defensible number, and the result says `default` until it
@@ -217,8 +221,19 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
     }
   }
 
+  // A 'mul' component is a loaded gun: a configured factor of 0 would zero the price outright and
+  // a negative one would invert it. Anything outside a sane band is refused, the neutral 1.0000 is
+  // used for that aspect instead, and the rejection is warned about rather than applied silently.
   let totalFactor = ONE
-  for (const hit of hits) totalFactor = mul(totalFactor, hit.factor)
+  const rejectedAspects: string[] = []
+  for (const hit of hits) {
+    if (!gt(hit.factor, ZERO) || gt(hit.factor, MAX_ASPECT_FACTOR)) {
+      rejectedAspects.push(hit.code)
+      continue
+    }
+    totalFactor = mul(totalFactor, hit.factor)
+  }
+  if (rejectedAspects.length > 0) warnings.push('pricing_engine.warnings.productAspectFactorRejected')
 
   const physicalConfidence: PricingConfidence =
     weight.kilograms !== null && volume.cubicMetres !== null
@@ -229,7 +244,19 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
 
   // The thresholds decide which aspects fire, so an assumed threshold weakens the answer even when
   // no aspect fired: "nothing applies" is itself a claim made against an assumed limit.
-  const multiplierConfidence: PricingConfidence = payload ? 'measured' : 'default'
+  // A payload that is merely PRESENT proves nothing — it has to actually carry every figure this
+  // component consumed, otherwise the missing ones silently fell back to invented defaults.
+  const suppliedAll =
+    payload !== null &&
+    payload.heavyThresholdKg !== undefined &&
+    payload.heavyThresholdKg !== null &&
+    payload.heavyFactor !== undefined &&
+    payload.heavyFactor !== null &&
+    payload.oversizeThresholdM3 !== undefined &&
+    payload.oversizeThresholdM3 !== null &&
+    payload.oversizeFactor !== undefined &&
+    payload.oversizeFactor !== null
+  const multiplierConfidence: PricingConfidence = suppliedAll ? 'measured' : 'default'
 
   return {
     code: PRODUCT_ASPECTS_CODE,

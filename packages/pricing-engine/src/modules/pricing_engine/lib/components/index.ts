@@ -1,12 +1,20 @@
 import type { PriceComponent } from '../types'
 import { productCostComponent } from './productCost'
 import { operationalCostBaseComponent } from './operationalCostBase'
+import { packagingCostComponent } from './packagingCost'
+import { warehouseCostComponent } from './warehouseCost'
+import { logisticsCostComponent } from './logisticsCost'
+import { productAspectsComponent } from './productAspects'
 import { targetMarginComponent } from './targetMargin'
 import { guardrailsComponent } from './guardrails'
 import { roundingComponent } from './rounding'
 
 export { PRODUCT_COST_CODE } from './productCost'
 export { OPERATIONAL_COST_BASE_CODE } from './operationalCostBase'
+export { PACKAGING_COST_CODE } from './packagingCost'
+export { WAREHOUSE_COST_CODE } from './warehouseCost'
+export { LOGISTICS_COST_CODE } from './logisticsCost'
+export { PRODUCT_ASPECTS_CODE } from './productAspects'
 export { TARGET_MARGIN_CODE } from './targetMargin'
 export { GUARDRAILS_CODE } from './guardrails'
 export { ROUNDING_CODE } from './rounding'
@@ -15,6 +23,10 @@ export { ROUNDING_CODE } from './rounding'
 export const implementedComponents: PriceComponent[] = [
   productCostComponent,
   operationalCostBaseComponent,
+  packagingCostComponent,
+  warehouseCostComponent,
+  logisticsCostComponent,
+  productAspectsComponent,
   targetMarginComponent,
   guardrailsComponent,
   roundingComponent,

@@ -1,4 +1,5 @@
-import { add, div, money, mul, ONE, percentToFactor, toDecimal, ZERO } from '../decimal'
+import { add, div, gt, money, mul, ONE, percentToFactor, toDecimal, ZERO } from '../decimal'
+import type { Decimal } from '../decimal'
 import type { ComponentComputeArgs, ComponentResult, PriceComponent } from '../types'
 
 export const LOGISTICS_COST_CODE = 'logistics_cost'
@@ -97,16 +98,24 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   const payload = deps.params.componentPayload(LOGISTICS_COST_CODE, scopeRefs) as LogisticsPayload | null
   const paramRef = deps.params.componentParamRef(LOGISTICS_COST_CODE, scopeRefs)
 
-  const configuredWorkingDays = payload?.workingDaysPerMonth
-  const configuredTripsPerDay = payload?.tripsPerDay
-  const scheduleAssumed = configuredWorkingDays === undefined || configuredTripsPerDay === undefined
+  // Both figures are divisors. A configured 0, a negative, null or a non-numeric string must fall
+  // back to the documented default and be reported as assumed: `div()` returns 0 on a zero
+  // divisor, so an unvalidated 0 would make the vehicle's fixed cost silently vanish from the
+  // price while the component still claimed the schedule was configured.
+  const resolveDivisor = (configured: unknown, fallback: string): { value: Decimal; assumed: boolean } => {
+    if (configured === undefined || configured === null) return { value: toDecimal(fallback), assumed: true }
+    const parsed = toDecimal(configured as string | number, fallback)
+    if (!gt(parsed, ZERO)) return { value: toDecimal(fallback), assumed: true }
+    return { value: parsed, assumed: false }
+  }
+
+  const workingDays = resolveDivisor(payload?.workingDaysPerMonth, DEFAULT_WORKING_DAYS_PER_MONTH)
+  const trips = resolveDivisor(payload?.tripsPerDay, DEFAULT_TRIPS_PER_DAY)
+  const scheduleAssumed = workingDays.assumed || trips.assumed
   if (scheduleAssumed) warnings.push('pricing_engine.warnings.logisticsScheduleAssumed')
 
-  const workingDaysPerMonth = toDecimal(
-    configuredWorkingDays ?? DEFAULT_WORKING_DAYS_PER_MONTH,
-    DEFAULT_WORKING_DAYS_PER_MONTH,
-  )
-  const tripsPerDay = toDecimal(configuredTripsPerDay ?? DEFAULT_TRIPS_PER_DAY, DEFAULT_TRIPS_PER_DAY)
+  const workingDaysPerMonth = workingDays.value
+  const tripsPerDay = trips.value
 
   const roundTripKm = mul(toDecimal(zone.avgDistanceKm), ROUND_TRIP)
   const litres = mul(
@@ -129,7 +138,9 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
 
   // Delivery density: the run is shared across every drop on it, so a dense city zone costs a
   // fraction of what the same kilometres cost when one customer is the only stop.
-  const stopsInvalid = zone.typicalStops < 1
+  // `typical_stops` is a plain integer column, so NaN/Infinity/0/negatives all have to be caught
+  // here rather than trusted — an invalid divisor would otherwise either zero the cost or invert it.
+  const stopsInvalid = !Number.isInteger(zone.typicalStops) || zone.typicalStops < 1
   if (stopsInvalid) warnings.push('pricing_engine.warnings.deliveryStopsInvalid')
   const typicalStops = stopsInvalid ? ONE : toDecimal(String(zone.typicalStops))
   const costPerStop = div(runCost, typicalStops)

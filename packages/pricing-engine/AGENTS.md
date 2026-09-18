@@ -15,7 +15,20 @@ B2B distribution. Spec: [`.ai/specs/2026-09-18-pricing-engine-module.md`](../../
   `EntityManager`.
 - Keep `pricing_engine` listed **after** `sales` in `apps/*/src/modules.ts` — DI registrars run in that
   order and this module decorates `salesCalculationService`.
-- Ship all five locales (`en`, `pl`, `es`, `de`, `ko`), flat and alphabetically sorted.
+- Ship all five locales (`en`, `pl`, `es`, `de`, `ko`), flat and alphabetically sorted. Every key a
+  component can emit must exist in `en` AND `pl` — `__tests__/i18nKeys.test.ts` sweeps five branch
+  paths and fails on a missing key or an unsupplied `{placeholder}`.
+- Chain `.proxy()` on any `asFunction` factory with a destructured parameter. The container runs in
+  Awilix CLASSIC mode and resolves by parameter name, so without it `em` arrives `undefined` at
+  runtime. `packages/core/src/__tests__/di-classic-proxy.test.ts` enforces this.
+- Read a specific earlier component through `args.componentValues[CODE]`, not through
+  `args.unitCostNet`. The running total is the wrong base whenever you need one particular figure —
+  frozen capital finances the goods, not the labour not yet spent on them.
+- Clamp every configured multiplier on a `mul` component to a sane band and warn on rejection. A
+  configured `0` would zero the price outright and a negative one would invert it.
+- Validate anything used as a divisor (`div()` returns 0 on a zero divisor, so a bad config makes a
+  cost silently vanish rather than fail loudly) and anything that reaches confidence: a payload that
+  merely EXISTS is not a configured payload — check that it carries every figure you consumed.
 
 ## Ask First
 

@@ -1,4 +1,5 @@
 import { add, div, format, gt, max, money, mul, percentToFactor, toDecimal, ZERO } from '../decimal'
+import { PRODUCT_COST_CODE } from './productCost'
 import type { Decimal } from '../decimal'
 import type {
   CatalogProductSnapshot,
@@ -12,11 +13,15 @@ import type {
 
 export const WAREHOUSE_COST_CODE = 'warehouse_cost'
 
-// A racked EUR pallet slot: a 1.2 m x 0.8 m footprint with 1.8 m of stacking clearance.
+// Geometry of a racked EUR pallet slot: a 1.2 m x 0.8 m footprint with 1.8 m of stacking
+// clearance, carrying 800 kg of dynamic load. These are physical defaults, not measurements of
+// THIS distributor's racking — a warehouse with different racking gets different numbers, and
+// they move a production price. They are therefore overridable through the component's parameter
+// payload (`palletSlotVolumeM3` / `palletSlotCapacityKg`), and a component running on the
+// defaults never reports better than `estimated`.
+// TODO(data-source): no module in Open Mercato models racking geometry; until one does, this is
+// a configured assumption and the coverage register reports it as such.
 export const PALLET_SLOT_VOLUME_M3 = '1.728'
-
-// Dynamic load one racked slot carries. Dense goods exhaust the weight ceiling long before the
-// volume, so a slot share taken from volume alone understates chemistry, tinned food or drinks.
 export const PALLET_SLOT_CAPACITY_KG = '800'
 
 const DAYS_PER_MONTH = toDecimal('30')
@@ -180,8 +185,15 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
     mul(occupancy.share, toDecimal(warehouse.costPerMonth)),
     div(turnoverDays, DAYS_PER_MONTH),
   )
+  // Frozen capital is the money tied up in GOODS. Charging it on the accumulated cost would
+  // finance the picking labour and packaging that have not been paid out yet, and would compound
+  // as more cost components land ahead of this one. The spec formula is explicit:
+  // product_cost x capitalCostAnnualRate x turnoverDays / 365.
+  const productCostValue = args.componentValues[PRODUCT_COST_CODE]
+  const capitalBase = productCostValue === undefined ? unitCostNet : toDecimal(productCostValue)
+  if (productCostValue === undefined) warnings.push('pricing_engine.warnings.capitalBaseFallback')
   const capitalCost = mul(
-    mul(unitCostNet, percentToFactor(warehouse.capitalCostAnnualRate)),
+    mul(capitalBase, percentToFactor(warehouse.capitalCostAnnualRate)),
     div(turnoverDays, DAYS_PER_YEAR),
   )
   const perUnit = add(spaceCost, capitalCost)

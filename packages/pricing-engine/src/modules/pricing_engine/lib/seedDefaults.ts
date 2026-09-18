@@ -123,6 +123,57 @@ export const DEMO_GUARDRAIL = {
 
 export const DEMO_ROUNDING_POLICY = { step: '0.01' }
 
+// Assumed Step 2 rates. Same status as everything else in this file: assumptions a real
+// distributor replaces, never measurements.
+export const DEMO_PACKAGING_COSTS = [
+  { unitCode: 'pc', materialCost: '0.1200', packMinutes: '0.2000', roleCode: 'warehouse' },
+  { unitCode: 'box', materialCost: '1.8500', packMinutes: '1.5000', roleCode: 'warehouse' },
+  { unitCode: 'pallet', materialCost: '38.0000', packMinutes: '12.0000', roleCode: 'warehouse' },
+] as const
+
+export const DEMO_WAREHOUSE_COST = {
+  basis: 'pallet_slot' as const,
+  costPerMonth: '95.0000',
+  capitalCostAnnualRate: '9.0000',
+  defaultTurnoverDays: 30,
+}
+
+export const DEMO_VEHICLES = [
+  {
+    code: 'van_35t',
+    label: 'pricing_engine.vehicles.van35t',
+    capacityKg: '1200.0000',
+    capacityM3: '14.0000',
+    capacityPallets: 6,
+    fuelType: 'diesel',
+    consumptionLPer100Km: '11.5000',
+    fixedCostMonth: '4200.0000',
+    driverRoleCode: 'driver',
+  },
+] as const
+
+export const DEMO_DELIVERY_ZONES = [
+  {
+    code: 'warszawa_poludnie',
+    label: 'pricing_engine.zones.warszawaPoludnie',
+    avgDistanceKm: '34.0000',
+    avgDriveMinutes: '55.0000',
+    typicalStops: 3,
+    defaultVehicleCode: 'van_35t',
+  },
+  {
+    code: 'mazowieckie_daleko',
+    label: 'pricing_engine.zones.mazowieckieDaleko',
+    avgDistanceKm: '145.0000',
+    avgDriveMinutes: '190.0000',
+    typicalStops: 1,
+    defaultVehicleCode: 'van_35t',
+  },
+] as const
+
+// A single observation, not a series — a real distributor feeds this from its fuel-card export.
+export const DEMO_FUEL_PRICES = [{ fuelType: 'diesel', pricePerLitre: '6.4900' }] as const
+
 export const COVERAGE_SEED = [
   {
     componentCode: 'product_cost',
@@ -135,6 +186,34 @@ export const COVERAGE_SEED = [
     componentCode: 'operational_cost_base',
     sourceKind: 'pricing_process_steps',
     sourceRef: 'pricing_labor_rates x pricing_order_scenarios',
+    confidence: 'default' as const,
+    missingReasonKey: 'pricing_engine.coverage.reason.assumedRates',
+  },
+  {
+    componentCode: 'packaging_cost',
+    sourceKind: 'pricing_packaging_costs',
+    sourceRef: 'catalog_product_unit_conversions (not wired yet)',
+    confidence: 'default' as const,
+    missingReasonKey: 'pricing_engine.coverage.reason.packagingConversionsMissing',
+  },
+  {
+    componentCode: 'warehouse_cost',
+    sourceKind: 'pricing_warehouse_costs',
+    sourceRef: 'catalog dimensions/weight + assumed pallet geometry',
+    confidence: 'estimated' as const,
+    missingReasonKey: 'pricing_engine.coverage.reason.warehouseTurnoverAssumed',
+  },
+  {
+    componentCode: 'logistics_cost',
+    sourceKind: 'pricing_delivery_zones',
+    sourceRef: 'pricing_vehicles x pricing_fuel_prices',
+    confidence: 'default' as const,
+    missingReasonKey: 'pricing_engine.coverage.reason.assumedRates',
+  },
+  {
+    componentCode: 'product_aspects',
+    sourceKind: 'catalog_products',
+    sourceRef: 'weight_value / dimensions',
     confidence: 'default' as const,
     missingReasonKey: 'pricing_engine.coverage.reason.assumedRates',
   },

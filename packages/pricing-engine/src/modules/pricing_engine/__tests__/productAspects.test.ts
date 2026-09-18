@@ -110,7 +110,9 @@ describe('product_aspects', () => {
         product: { weightValue: '5.2000', weightUnit: 'kg', dimensions: SMALL_BOX },
         lookup: {
           componentPayloads: {
-            product_aspects: { heavyThresholdKg: '5', heavyFactor: '1.2000' },
+            // Every figure the component consumes must be supplied before it may claim
+            // 'measured' — a partial payload still leans on invented defaults.
+            product_aspects: { heavyThresholdKg: '5', heavyFactor: '1.2000', oversizeThresholdM3: '0.5', oversizeFactor: '1.0000' },
           },
         },
       }),
@@ -136,7 +138,14 @@ describe('product_aspects', () => {
       args({
         product: { weightValue: '5.2000', weightUnit: 'kg', dimensions: null },
         lookup: {
-          componentPayloads: { product_aspects: { heavyThresholdKg: '25', heavyFactor: '1.04' } },
+          componentPayloads: {
+            product_aspects: {
+              heavyThresholdKg: '25',
+              heavyFactor: '1.04',
+              oversizeThresholdM3: '0.5',
+              oversizeFactor: '1.06',
+            },
+          },
         },
       }),
     )
@@ -199,6 +208,43 @@ describe('product_aspects', () => {
     expect(result.labelKey).toBe('pricing_engine.components.productAspects.label')
     for (const warning of result.warnings ?? []) {
       expect(warning.startsWith('pricing_engine.warnings.')).toBe(true)
+    }
+  })
+
+  it('refuses a partial payload the right to claim measured confidence', async () => {
+    // Regression guard: a payload that merely EXISTS proves nothing. Half of it missing means the
+    // other half silently fell back to invented defaults, which is exactly what confidence exists
+    // to disclose.
+    const result = await productAspectsComponent.compute(
+      args({
+        product: { weightValue: '5.2000', weightUnit: 'kg', dimensions: SMALL_BOX },
+        lookup: {
+          componentPayloads: { product_aspects: { heavyThresholdKg: '5', heavyFactor: '1.2000' } },
+        },
+      }),
+    )
+    expect(result.confidence).toBe('default')
+  })
+
+  it('refuses a factor that would zero or invert the price', async () => {
+    for (const rogue of ['0', '-1.5', '99']) {
+      const result = await productAspectsComponent.compute(
+        args({
+          product: { weightValue: '30.0000', weightUnit: 'kg', dimensions: SMALL_BOX },
+          lookup: {
+            componentPayloads: {
+              product_aspects: {
+                heavyThresholdKg: '5',
+                heavyFactor: rogue,
+                oversizeThresholdM3: '0.5',
+                oversizeFactor: '1.0000',
+              },
+            },
+          },
+        }),
+      )
+      expect(result.value).toBe('1.0000')
+      expect(result.warnings).toContain('pricing_engine.warnings.productAspectFactorRejected')
     }
   })
 })

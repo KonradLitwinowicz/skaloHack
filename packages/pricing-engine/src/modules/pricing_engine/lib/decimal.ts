@@ -122,6 +122,16 @@ export function quantizeMoney(value: Decimal): Decimal {
   return toDecimal(format(value, MONEY_DP))
 }
 
+// Truncate toward negative infinity onto a whole number, staying inside the decimal domain.
+// Counting whole cartons through `Number(format(...))` would round half-up first, so a line
+// filling 1.9999996 of a carton would be billed for two.
+export function floorToInteger(value: Decimal): Decimal {
+  const truncated = value / SCALE_FACTOR
+  const exact = truncated * SCALE_FACTOR === value
+  const floored = value < 0n && !exact ? truncated - 1n : truncated
+  return floored * SCALE_FACTOR
+}
+
 export function roundToStep(value: Decimal, step: Decimal): Decimal {
   if (step <= 0n) return value
   const steps = divideRoundHalfUp(value, step)

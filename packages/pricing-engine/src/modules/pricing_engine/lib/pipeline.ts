@@ -67,6 +67,7 @@ export async function runPipeline(
 
     let runningUnitValue = ZERO
     let unitCostNet = ZERO
+    const componentValues: Record<string, string> = {}
 
     for (const component of ordered) {
       const result = await component.compute({
@@ -76,6 +77,7 @@ export async function runPipeline(
         quantity,
         runningUnitValue,
         unitCostNet,
+        componentValues,
         deps,
       })
 
@@ -90,6 +92,8 @@ export async function runPipeline(
           result.effect === 'add' ? add(unitCostNet, value) : mul(unitCostNet, value),
         )
       }
+
+      componentValues[result.code] = result.value
 
       for (const warning of result.warnings ?? []) {
         lineWarnings.push(warning)

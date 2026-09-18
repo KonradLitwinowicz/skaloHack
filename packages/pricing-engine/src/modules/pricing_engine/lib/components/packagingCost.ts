@@ -1,4 +1,4 @@
-import { add, div, format, gt, money, mul, ONE, percentToFactor, toDecimal, ZERO } from '../decimal'
+import { add, div, floorToInteger, format, gt, money, mul, ONE, percentToFactor, toDecimal, ZERO } from '../decimal'
 import type { Decimal } from '../decimal'
 import type {
   ComponentComputeArgs,
@@ -33,15 +33,14 @@ function packUnitCost(row: PackagingCostSnapshot, rate: LaborRateSnapshot | null
   return add(materialCost, mul(hours, loadedRate))
 }
 
-// Counting cartons is integer counting, not money arithmetic, so it leaves the decimal layer for
-// exactly one `Math.floor`. Only whole packs the line actually fills are charged: billing a
-// partial carton as a full one would invent a cost, and rounding a 24-unit line up to a pallet
-// would invent a large one.
+// Only whole packs the line actually fills are charged: billing a partial carton as a full one
+// would invent a cost, and rounding a 24-unit line up to a pallet would invent a large one.
+// The count stays inside the decimal domain — going through Number/format would round half-up
+// first and bill a line filling 1.9999996 cartons for two.
 function wholePackCount(quantity: Decimal, toBaseFactor: Decimal): Decimal {
   if (!gt(toBaseFactor, ZERO)) return ZERO
-  const packs = Number(format(div(quantity, toBaseFactor), 6))
-  if (!Number.isFinite(packs) || packs < 1) return ZERO
-  return toDecimal(String(Math.floor(packs)))
+  const packs = floorToInteger(div(quantity, toBaseFactor))
+  return gt(packs, ZERO) ? packs : ZERO
 }
 
 async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {

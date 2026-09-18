@@ -15,6 +15,7 @@ function args(overrides: Parameters<typeof buildDeps>[0] = {}, extra: Record<str
     quantity: toDecimal('24'),
     runningUnitValue: ZERO,
     unitCostNet: ZERO,
+    componentValues: {},
     deps: buildDeps(overrides),
     ...extra,
   }
@@ -64,7 +65,11 @@ describe('warehouse_cost', () => {
     expect(result.inputs.volumeM3).toBeNull()
   })
 
-  it('charges frozen capital on the cost accumulated so far', async () => {
+  it('charges frozen capital on the purchase cost, not on the accumulated cost', async () => {
+    // Frozen capital finances the GOODS. Charging it on unitCostNet would finance the picking
+    // labour and packaging that have not been paid out yet, and would grow every time a new cost
+    // component is added ahead of this one. Here the accumulated cost is 100 but the goods cost
+    // 80, so the 9%/year charge over a full year is 7.20, not 9.00.
     const result = await warehouseCostComponent.compute({
       ...args({
         product: { weightValue: null, dimensions: null },
@@ -73,9 +78,25 @@ describe('warehouse_cost', () => {
         },
       }),
       unitCostNet: toDecimal('100'),
+      componentValues: { product_cost: '80.0000' },
+    })
+    expect(result.value).toBe('7.2000')
+    expect(result.inputs.capitalCost).toBe('7.2000')
+  })
+
+  it('falls back to the accumulated cost and warns when product_cost never ran', async () => {
+    const result = await warehouseCostComponent.compute({
+      ...args({
+        product: { weightValue: null, dimensions: null },
+        lookup: {
+          warehouseCost: { ...DEMO_WAREHOUSE, costPerMonth: '0.0000', defaultTurnoverDays: 365 },
+        },
+      }),
+      unitCostNet: toDecimal('100'),
+      componentValues: {},
     })
     expect(result.value).toBe('9.0000')
-    expect(result.inputs.capitalCost).toBe('9.0000')
+    expect(result.warnings).toContain('pricing_engine.warnings.capitalBaseFallback')
   })
 
   it('scales the space charge with the turnover assumption', async () => {
