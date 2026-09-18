@@ -269,9 +269,12 @@ To jest ekran dla osoby decyzyjnej: pokazuje, na czym silnik stoi, zanim ktoś u
 
 ```bash
 # zaloguj się i zapamiętaj ciasteczko sesji
+# Uwaga: logowanie przyjmuje DANE FORMULARZA, nie JSON. Wysłanie JSON-a kończy się
+# ogólnym "Invalid email or password", bo parser widzi puste pola.
 curl -s -c /tmp/om.jar -X POST http://localhost:3000/api/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"email":"superadmin@acme.com","password":"secret"}'
+  -H 'content-type: application/x-www-form-urlencoded' \
+  --data-urlencode 'email=superadmin@acme.com' \
+  --data-urlencode 'password=secret'
 
 # rejestr pokrycia danymi
 curl -s -b /tmp/om.jar http://localhost:3000/api/pricing/coverage
