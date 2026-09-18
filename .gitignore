@@ -9,4 +9,8 @@ generated/
 .env
 .env.*
 .DS_Store
-coverage/
+
+# Jest coverage output. Anchored on purpose: an unanchored `coverage/` would also
+# swallow the module's own `api/coverage/` and `backend/pricing/coverage/` sources.
+/coverage/
+packages/*/coverage/
