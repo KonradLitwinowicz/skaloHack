@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+.mercato/
+generated/
+.turbo/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+.DS_Store
+coverage/
