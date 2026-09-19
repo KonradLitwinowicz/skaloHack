@@ -74,9 +74,14 @@ function LookupField({ label, children }: { label: string; children: React.React
   )
 }
 
-function newBasketRow(): BasketRow {
+// The first row is rendered on the server too, so its key must be deterministic: a random key
+// there differs between the server and client render and breaks hydration (its `htmlFor`/`id`
+// derive from it). Rows added later are created in the browser only and may be random.
+const INITIAL_ROW_KEY = 'initial'
+
+function newBasketRow(key?: string): BasketRow {
   return {
-    key: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()),
+    key: key ?? (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now())),
     productId: null,
     quantity: 1,
   }
@@ -145,7 +150,7 @@ export default function PricingCalculatorPage() {
   const [deliveryZoneCode, setDeliveryZoneCode] = React.useState<string | null>(null)
   const [scenarioOptions, setScenarioOptions] = React.useState<CodedOption[] | null>(null)
   const [zoneOptions, setZoneOptions] = React.useState<CodedOption[] | null>(null)
-  const [rows, setRows] = React.useState<BasketRow[]>(() => [newBasketRow()])
+  const [rows, setRows] = React.useState<BasketRow[]>(() => [newBasketRow(INITIAL_ROW_KEY)])
   const [result, setResult] = React.useState<QuoteResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)

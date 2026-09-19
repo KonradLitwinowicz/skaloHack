@@ -7,6 +7,7 @@
  *
  * Deliberately excluded, and why:
  * - `auth.*`, `directory.*`, `configs.*`, `entities.*`, `api_keys.*` — platform administration
+ *   (one read-only exception: `auth.users.list`, see below)
  * - `pricing.mode.change` — flipping the engine out of shadow mode is a privileged act
  * - `pricing.supplier.import` — it drags `pricing.params.write` and is an import surface, not daily work
  * - `sales.documents.number.edit` — rewriting a document number is an audit concern
@@ -29,6 +30,9 @@ export const DISTRIBUTOR_FEATURES = [
   // already enforce, and this module declares no `acl.ts` for the platform to register it from.
   'analytics.view',
   'attachments.view',
+  // The messages composer lists backend users as recipients (`GET /api/auth/users`). Read-only:
+  // the role still cannot create, edit or delete a user.
+  'auth.users.list',
   'catalog.categories.manage',
   'catalog.categories.view',
   'catalog.pricing.manage',
@@ -36,12 +40,19 @@ export const DISTRIBUTOR_FEATURES = [
   'catalog.products.view',
   'catalog.variants.manage',
   'currencies.view',
+  // Logging calls and visits against a customer is daily sales work. It is also the second half of
+  // the gate on `GET /api/staff/team-members/assignable` (`customers.roles.view` AND one of
+  // `customers.roles.manage` / `customers.activities.manage`), which the company and person lists call.
+  'customers.activities.manage',
   'customers.activities.view',
   'customers.companies.manage',
   'customers.companies.view',
   'customers.interactions.view',
   'customers.people.manage',
   'customers.people.view',
+  // The company and person lists load assignable account owners from
+  // `GET /api/staff/team-members/assignable`, whose metadata requires this id (see above for the rest).
+  'customers.roles.view',
   'customers.widgets.new-customers',
   'customers.widgets.next-interactions',
   'customers.widgets.todos',
@@ -50,6 +61,10 @@ export const DISTRIBUTOR_FEATURES = [
   'dashboards.configure',
   'dashboards.view',
   'dictionaries.view',
+  // `/backend/messages` sits in this role's daily nav group; it reads `/api/messages/types`
+  // (`messages.view`) and a message cannot be written without `messages.compose`.
+  'messages.compose',
+  'messages.view',
   'notifications.manage_preferences',
   'notifications.view',
   'perspectives.use',
@@ -66,6 +81,10 @@ export const DISTRIBUTOR_FEATURES = [
   'sales.quotes.manage',
   'sales.quotes.view',
   'sales.returns.view',
+  // Sales status dictionaries (`/api/sales/order-statuses` and siblings, `makeStatusDictionaryRoute`)
+  // require `sales.settings.manage` even for GET, and the order and quote lists load them for their
+  // status column — without it both lists log a 403 on every visit. The core `employee` role grants it.
+  'sales.settings.manage',
   'sales.settings.view',
   'sales.shipments.manage',
   'sales.widgets.new-orders',
