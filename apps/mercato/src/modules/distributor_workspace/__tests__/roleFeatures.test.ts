@@ -1,9 +1,11 @@
 import { features as attachmentsFeatures } from '@open-mercato/core/modules/attachments/acl'
+import { features as authFeatures } from '@open-mercato/core/modules/auth/acl'
 import { features as catalogFeatures } from '@open-mercato/core/modules/catalog/acl'
 import { features as currenciesFeatures } from '@open-mercato/core/modules/currencies/acl'
 import { features as customersFeatures } from '@open-mercato/core/modules/customers/acl'
 import { features as dashboardsFeatures } from '@open-mercato/core/modules/dashboards/acl'
 import { features as dictionariesFeatures } from '@open-mercato/core/modules/dictionaries/acl'
+import { features as messagesFeatures } from '@open-mercato/core/modules/messages/acl'
 import { features as notificationsFeatures } from '@open-mercato/core/modules/notifications/acl'
 import { features as perspectivesFeatures } from '@open-mercato/core/modules/perspectives/acl'
 import { features as salesFeatures } from '@open-mercato/core/modules/sales/acl'
@@ -23,11 +25,13 @@ type DeclaredFeature = { id: string; title: string; module: string; dependsOn?: 
 
 const ALL_FEATURES: readonly DeclaredFeature[] = [
   ...attachmentsFeatures,
+  ...authFeatures,
   ...catalogFeatures,
   ...currenciesFeatures,
   ...customersFeatures,
   ...dashboardsFeatures,
   ...dictionariesFeatures,
+  ...messagesFeatures,
   ...notificationsFeatures,
   ...perspectivesFeatures,
   ...pricingFeatures,
