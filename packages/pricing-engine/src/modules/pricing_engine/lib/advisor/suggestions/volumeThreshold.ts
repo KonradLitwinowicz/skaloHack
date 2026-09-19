@@ -1,6 +1,6 @@
 import { add, format, money, sub, toDecimal } from '../../decimal'
 import type { PricingBasketLine } from '../../types'
-import { ceilToMultiple, packLadder, scaleQuantity, uniqueAscending } from '../quantity'
+import { scaleQuantity, uniqueAscending } from '../quantity'
 import {
   buildSuggestion,
   improvesBasketProfit,
@@ -15,15 +15,20 @@ import type { Suggestion } from '../schemas'
 
 const KIND = 'volume_threshold' as const
 
-// Growth steps to probe alongside the next whole pack. Fixed per-order cost amortises as 1/q, so the
-// curve is steep at small quantities and flat at large ones; three multiplicative steps sample it
-// without turning one advisory call into a hundred pipeline runs.
+// Growth steps only. Fixed per-order cost amortises as 1/q, so the curve is steep at small
+// quantities and flat at large ones; three multiplicative steps sample it without turning one
+// advisory call into a hundred pipeline runs.
+//
+// The pack ladder deliberately does NOT appear here. `full_pack_rounding` owns whole-pack
+// quantities and explains them better, naming the carton or pallet being filled; generating the
+// same quantity from both kinds produced two cards for one action, and `maxPerKind` caps only
+// within a kind, so the count on screen overstated how many distinct moves the rep actually had.
 const GROWTH_FACTORS = ['1.25', '1.5', '2']
 
-function candidateQuantities(current: bigint, unitConversions: Record<string, string>): bigint[] {
-  const packSteps = packLadder(unitConversions).map((entry) => ceilToMultiple(current, entry.factor))
-  const growthSteps = GROWTH_FACTORS.map((factor) => scaleQuantity(current, factor))
-  return uniqueAscending([...packSteps, ...growthSteps]).filter((value) => value > current)
+function candidateQuantities(current: bigint): bigint[] {
+  return uniqueAscending(GROWTH_FACTORS.map((factor) => scaleQuantity(current, factor))).filter(
+    (value) => value > current,
+  )
 }
 
 /**
@@ -45,7 +50,7 @@ export async function generateVolumeThresholdSuggestions(run: AdvisorRun): Promi
     const product = run.inputs.catalog.byProductId.get(baselineLine.line.productId) ?? null
     const currentQuantity = toDecimal(baselineLine.line.quantity)
 
-    for (const candidate of candidateQuantities(currentQuantity, product?.unitConversions ?? {})) {
+    for (const candidate of candidateQuantities(currentQuantity)) {
       const variantLines: PricingBasketLine[] = replaceLine(run.context.lines, lineIndex, {
         quantity: format(candidate, 0),
       })

@@ -1,5 +1,9 @@
 export const metadata = {
   requireAuth: true,
+  // A create page is reached from its list's "Add" button, never from the sidebar. Left
+  // visible, the twelve of them collect into an untranslated `Pricing_engine` group that
+  // doubles the module's apparent menu weight. The URL keeps working.
+  navHidden: true,
   requireFeatures: ['pricing.params.write'],
   pageTitle: 'Add to packaging costs',
   pageTitleKey: 'pricing_engine.params.packagingCosts.create',

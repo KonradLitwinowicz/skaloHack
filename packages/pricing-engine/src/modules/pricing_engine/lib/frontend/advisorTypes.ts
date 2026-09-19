@@ -21,9 +21,42 @@ export type AdvisorSuggestionChange = {
   toOrderScenarioCode?: string
 }
 
+export type AdvisorSuggestionSubject = {
+  productId: string
+  sku: string | null
+  title: string | null
+}
+
+export type AdvisorObjectiveMetric =
+  | 'marginPercent'
+  | 'profitNet'
+  | 'revenueNet'
+  | 'unitCostNet'
+  | 'productCost'
+  | 'operationalCost'
+  | 'packagingCost'
+  | 'warehouseCost'
+  | 'logisticsCost'
+
+export type AdvisorObjectiveContribution = {
+  code: string
+  label: string
+  metric: AdvisorObjectiveMetric
+  weight: string
+  delta: string
+  normalised: string
+  contribution: string
+}
+
+export type AdvisorObjectiveScore = {
+  total: string
+  contributions: AdvisorObjectiveContribution[]
+}
+
 export type AdvisorSuggestion = {
   code: AdvisorSuggestionKind
   titleKey: string
+  subject: AdvisorSuggestionSubject | null
   explainKey: string
   explainValues: Record<string, string>
   breakEvenConditionKey: string
@@ -40,6 +73,7 @@ export type AdvisorSuggestion = {
   guardrailFloorUnitPrice: string | null
   confidence: AdvisorConfidence
   raisesCustomerPrice: boolean
+  objectiveScore: AdvisorObjectiveScore | null
 }
 
 export type AdvisorVolumePoint = {

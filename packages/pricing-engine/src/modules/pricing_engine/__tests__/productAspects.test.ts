@@ -18,6 +18,10 @@ function args(overrides: Parameters<typeof buildDeps>[0] = {}, extra: Record<str
     quantity: toDecimal('24'),
     runningUnitValue: ZERO,
     unitCostNet: ZERO,
+    // Required by `ComponentComputeArgs`: the values of components that already ran in this
+    // pipeline pass. Empty here because these cases exercise one component in isolation — but the
+    // field has to be PRESENT, or the fixture stops matching the contract it claims to test.
+    componentValues: {},
     deps: buildDeps(overrides),
     ...extra,
   }

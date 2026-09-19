@@ -101,7 +101,11 @@ export default function PricingCoveragePage() {
                       <Badge variant={item.implemented ? 'default' : 'outline'}>
                         {item.implemented
                           ? t('pricing_engine.coverage.status.implemented', 'Live')
-                          : t('pricing_engine.coverage.status.pending', 'Not implemented')}
+                          : item.pendingReason === 'awaiting_data'
+                            ? t('pricing_engine.coverage.status.awaitingData', 'Awaiting data')
+                            : item.pendingReason === 'superseded'
+                              ? t('pricing_engine.coverage.status.superseded', 'Handled elsewhere')
+                              : t('pricing_engine.coverage.status.pending', 'Not implemented')}
                       </Badge>
                       {item.missingReasonKey ? (
                         <div className="mt-1 text-xs text-muted-foreground">

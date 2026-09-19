@@ -21,6 +21,7 @@ import type {
 const SAMPLE_SUGGESTION: AdvisorSuggestion = {
   code: 'volume_threshold',
   titleKey: 'pricing_engine.advisor.suggestion.volumeThreshold.title',
+  subject: { productId: 'product-1', sku: 'HOR-CHEM-0001', title: 'Płyn do mycia naczyń 5 l' },
   explainKey: 'pricing_engine.advisor.suggestion.volumeThreshold.explain',
   explainValues: { currency: 'PLN' },
   breakEvenConditionKey: 'pricing_engine.advisor.breakEven.volumeThreshold',
@@ -37,6 +38,20 @@ const SAMPLE_SUGGESTION: AdvisorSuggestion = {
   guardrailFloorUnitPrice: '108.6957',
   confidence: 'measured',
   raisesCustomerPrice: false,
+  objectiveScore: {
+    total: '0.1364',
+    contributions: [
+      {
+        code: 'profit',
+        label: 'Zysk kwotowy',
+        metric: 'profitNet',
+        weight: '40.0000',
+        delta: '216.0000',
+        normalised: '0.1364',
+        contribution: '5.4545',
+      },
+    ],
+  },
 }
 
 const SAMPLE_CHANGE: AdvisorSuggestionChange = { toOrderScenarioCode: 'ideal_file' }

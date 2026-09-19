@@ -5,6 +5,7 @@ import type {
   PricingConfidence,
   PricingMode,
 } from '../data/entities'
+import type { AuthorisedDeadstockFloors } from './deadstock/authorisedFloor'
 
 export type { PricingComponentEffect, PricingComponentLevel, PricingConfidence, PricingMode }
 
@@ -77,6 +78,12 @@ export type ComponentDeps = {
   catalog: CatalogSnapshot
   indicators: IndicatorSnapshot
   allocation: BasketAllocation
+  // Optional because ComponentDeps is a contract surface and WMS is an optional peer: a caller
+  // assembling deps without it must keep compiling, and a component without it must keep pricing.
+  inventory?: InventorySnapshot
+  // Floors a person authorised on the deadstock screen. Optional for the same reason, and empty
+  // whenever nobody has confirmed anything — which is the normal state.
+  deadstock?: AuthorisedDeadstockFloors
 }
 
 export type SupplierSnapshot = {
@@ -117,6 +124,58 @@ export type PurchasePositionSnapshot = {
 
 export type CatalogSnapshot = {
   byProductId: Map<string, CatalogProductSnapshot>
+}
+
+export type ProductLotSnapshot = {
+  lotId: string
+  lotNumber: string
+  status: 'available' | 'hold' | 'quarantine' | 'expired'
+  manufacturedAt: Date | null
+  bestBeforeAt: Date | null
+  expiresAt: Date | null
+  quantityAvailable: string
+}
+
+/**
+ * Why a turnover figure is or is not measured. Only `movements` may be presented as a measurement;
+ * every other value means the component fell back to its configured default and must say so.
+ */
+export type InventoryRotationSource =
+  | 'movements'
+  | 'no_movements'
+  | 'no_issues'
+  | 'no_stock'
+  | 'short_history'
+  | 'unavailable'
+
+export type ProductRotation = {
+  productId: string
+  variantIds: string[]
+  onHandQuantity: string
+  issuedQuantity: string
+  observedDays: number
+  dailyIssueRate: string
+  coverDays: string | null
+  source: InventoryRotationSource
+}
+
+export type ProductInventorySnapshot = {
+  productId: string
+  variantIds: string[]
+  trackExpiration: boolean
+  defaultStrategy: 'fifo' | 'lifo' | 'fefo' | null
+  /** Lots with pickable stock, already in FEFO order. */
+  lots: ProductLotSnapshot[]
+  rotation: ProductRotation
+}
+
+// Stock is prefetched next to the catalog rather than read inside a component, for the same reason
+// every other dependency is: a 50-line basket must cost a fixed number of queries.
+export type InventorySnapshot = {
+  byProductId: Map<string, ProductInventorySnapshot>
+  rotationWindowDays: number
+  /** False when the WMS module is absent, which is a supported configuration. */
+  available: boolean
 }
 
 export type IndicatorSnapshot = {

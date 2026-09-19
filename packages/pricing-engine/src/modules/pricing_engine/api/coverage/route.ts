@@ -5,7 +5,11 @@ import { createLogger } from '@open-mercato/shared/lib/logger'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { PricingCoverageEntry } from '../../data/entities'
 import { coverageResponseSchema } from '../../data/validators'
-import { PIPELINE_COMPONENT_CODES, implementedComponents } from '../../lib/components'
+import {
+  PENDING_COMPONENT_REASONS,
+  PIPELINE_COMPONENT_CODES,
+  implementedComponents,
+} from '../../lib/components'
 import { resolvePricingRouteContext } from '../../lib/api/context'
 
 const logger = createLogger('pricing_engine')
@@ -36,13 +40,14 @@ export async function GET(req: Request): Promise<Response> {
         componentCode: code,
         labelKey: `pricing_engine.components.${toCamelCase(code)}.label`,
         implemented,
+        pendingReason: implemented ? null : (PENDING_COMPONENT_REASONS[code] ?? null),
         sourceKind: row?.sourceKind ?? 'none',
         sourceRef: row?.sourceRef ?? null,
         freshnessDays: row?.freshnessDays ?? null,
         confidence: row?.confidence ?? 'default',
         missingReasonKey: implemented
           ? row?.missingReasonKey ?? null
-          : 'pricing_engine.coverage.reason.notImplemented',
+          : `pricing_engine.coverage.reason.${PENDING_COMPONENT_REASONS[code] ?? 'notImplemented'}`,
         lastCheckedAt: row?.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
       }
     })

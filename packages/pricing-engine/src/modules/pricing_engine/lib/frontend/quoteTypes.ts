@@ -45,6 +45,7 @@ export type CoverageItem = {
   componentCode: string
   labelKey: string
   implemented: boolean
+  pendingReason?: 'awaiting_data' | 'superseded' | null
   sourceKind: string
   sourceRef: string | null
   freshnessDays: number | null

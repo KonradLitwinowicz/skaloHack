@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { quoteLineSchema, quoteResponseSchema, simulateRequestSchema } from '../../data/validators'
+import { objectiveScoreSchema } from './objectives'
 
 // The advisor's own zod lives here rather than in `data/validators.ts`: that file is the frozen
 // request/response contract for /pricing/quote and /pricing/simulate, and the advisor is additive.
@@ -34,9 +35,18 @@ export const suggestionChangeSchema = z.object({
   toOrderScenarioCode: z.string().optional(),
 })
 
+// Which product the card is about. Nullable rather than absent: a suggestion that moves the whole
+// order (channel change, consolidation) genuinely has no single subject, and null says so.
+export const suggestionSubjectSchema = z.object({
+  productId: z.string(),
+  sku: z.string().nullable(),
+  title: z.string().nullable(),
+})
+
 export const suggestionSchema = z.object({
   code: suggestionKindSchema,
   titleKey: z.string(),
+  subject: suggestionSubjectSchema.nullable(),
   explainKey: z.string(),
   // Key + values rather than a rendered sentence: the advisor inherits the same i18n discipline the
   // pipeline components already follow, so a suggestion reads in Polish without a server round trip.
@@ -58,6 +68,10 @@ export const suggestionSchema = z.object({
   guardrailFloorUnitPrice: z.string().nullable(),
   confidence: confidenceSchema,
   raisesCustomerPrice: z.boolean(),
+  // Null whenever the operator configured no objective for this scope. The per-objective
+  // contributions ship alongside the total because a ranking nobody can decompose is a ranking
+  // nobody will trust.
+  objectiveScore: objectiveScoreSchema.nullable(),
 })
 
 export const volumeSensitivityPointSchema = z.object({
@@ -127,8 +141,17 @@ export const adviseResponseSchema = z.object({
   purchasingInsights: z.array(purchasingInsightSchema),
 })
 
+export type {
+  ObjectiveContribution,
+  ObjectiveScore,
+  PricingObjective,
+  PricingObjectiveDirection,
+  PricingObjectiveMetric,
+} from './objectives'
+
 export type SuggestionKind = z.infer<typeof suggestionKindSchema>
 export type SuggestionChange = z.infer<typeof suggestionChangeSchema>
+export type SuggestionSubject = z.infer<typeof suggestionSubjectSchema>
 export type Suggestion = z.infer<typeof suggestionSchema>
 export type VolumeSensitivityPoint = z.infer<typeof volumeSensitivityPointSchema>
 export type VolumeSensitivity = z.infer<typeof volumeSensitivitySchema>

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { EntityManager } from '@mikro-orm/postgresql'
+import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import {
   PricingCalculation,
   PricingCalculationLine,
@@ -9,6 +10,9 @@ import {
   PricingSupplierProfile,
 } from '../data/entities'
 import { loadCatalogSnapshot } from '../lib/catalog'
+import { loadInventorySnapshot } from '../lib/inventory'
+import { loadAuthorisedDeadstockFloors } from '../lib/deadstock/authorisedFloor'
+import type { AuthorisedDeadstockFloors } from '../lib/deadstock/authorisedFloor'
 import { add, money, mul, toDecimal, ZERO } from '../lib/decimal'
 import { implementedComponents, TARGET_MARGIN_CODE } from '../lib/components'
 import { loadParameters } from '../lib/params'
@@ -17,6 +21,7 @@ import type {
   CatalogSnapshot,
   ComponentDeps,
   IndicatorSnapshot,
+  InventorySnapshot,
   ParameterLookup,
   PricingContext,
   PricingQuoteResult,
@@ -51,6 +56,60 @@ export class SupplierProfileMissingError extends Error {
   }
 }
 
+export const CURRENCY_MISMATCH_ERROR_KEY = 'pricing_engine.errors.currencyMismatch'
+
+/**
+ * Extends `CrudHttpError` rather than plain `Error` so the 409 needs no new arm in
+ * `toPricingErrorResponse`: every pipeline-backed route already answers `isCrudHttpError` first,
+ * and quote, simulate and advise therefore get one identical contract for free.
+ *
+ * The two codes live on the error for logs and tests only. The HTTP body carries the translation
+ * key and nothing else, so a portal caller learns that the basket was refused without learning how
+ * the tenant's supplier profile is configured.
+ */
+export class PricingCurrencyMismatchError extends CrudHttpError {
+  readonly contextCurrencyCode: string
+  readonly supplierCurrencyCode: string
+
+  constructor(contextCurrencyCode: string, supplierCurrencyCode: string) {
+    super(409, { error: CURRENCY_MISMATCH_ERROR_KEY })
+    this.name = 'PricingCurrencyMismatchError'
+    this.message = `[internal] Requested currency ${contextCurrencyCode} differs from supplier profile currency ${supplierCurrencyCode}`
+    this.contextCurrencyCode = contextCurrencyCode
+    this.supplierCurrencyCode = supplierCurrencyCode
+  }
+}
+
+function normalizeCurrencyCode(code: string): string {
+  return code.trim().toUpperCase()
+}
+
+/**
+ * Refusal, not a warning, and this is the one place that can tell the difference.
+ *
+ * Every money input the pipeline reads is denominated in the supplier profile's currency by
+ * construction: `pricing_purchase_positions`, labor rates, fuel prices, packaging, warehouse and
+ * delivery-zone rows carry no currency column of their own, and no component converts anything.
+ * So a caller-supplied currency does not select a price list — it only relabels the result. Asking
+ * for USD over a PLN profile returns the PLN numbers with a USD sign in front of them.
+ *
+ * A warning was the alternative and was rejected: `quote()` persists `final_total_net` and
+ * `currency_code` into an append-only ledger that is replayed and summed later, and a string in the
+ * `warnings` column does not stop a report from adding USD-labelled zlotys to real dollars. The
+ * shadow observer already refuses the same comparison at its own seam for the same reason, so a
+ * soft path here would leave the package contradicting itself.
+ *
+ * An empty context currency is inheritance, not a collision — the caller named no currency and
+ * `resolveEffectiveContext` fills in the profile's. Case and padding are normalized away because a
+ * caller sending `pln` means the profile's currency, and refusing that would be a bug, not a guard.
+ */
+function assertCurrencyMatchesSupplier(contextCurrencyCode: string, supplier: SupplierSnapshot): void {
+  const requested = normalizeCurrencyCode(contextCurrencyCode)
+  if (requested.length === 0) return
+  if (requested === normalizeCurrencyCode(supplier.currencyCode)) return
+  throw new PricingCurrencyMismatchError(contextCurrencyCode, supplier.currencyCode)
+}
+
 // Everything one pricing run needs from the database, fetched once. Holding this makes a second,
 // third or twentieth hypothetical basket free: `priceWithInputs` touches no EntityManager, so an
 // advisory run that scores fifteen perturbations still costs one round of I/O rather than fifteen.
@@ -63,6 +122,24 @@ export type PricingInputs = {
   // `ParameterLookup` resolves a scenario by code but cannot enumerate them, and the advisor has to
   // know which channels exist before it can price a move between them.
   orderScenarioCodes: string[]
+  // Optional for the same reason the ComponentDeps field is: WMS is an optional peer, and this is
+  // an exported type third-party code may already construct.
+  inventory?: InventorySnapshot
+  deadstock?: AuthorisedDeadstockFloors
+}
+
+/**
+ * A basket line may name the variant being bought, which is the only variant hint that exists for a
+ * product whose inventory profile carries none. First line wins — a basket that asks for two
+ * variants of one product is already outside what the per-product cost model represents.
+ */
+export function variantIdsByProduct(lines: PricingContext['lines']): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const line of lines) {
+    if (!line.variantId || map.has(line.productId)) continue
+    map.set(line.productId, line.variantId)
+  }
+  return map
 }
 
 export type PricingInputsScope = {
@@ -89,6 +166,7 @@ export async function loadPricingInputs(
   container: { resolve: (name: string) => unknown },
   scope: PricingInputsScope,
   productIds: string[],
+  variantIdByProductId: Map<string, string> = new Map(),
 ): Promise<PricingInputs> {
   const scopeFilter = {
     tenantId: scope.tenantId,
@@ -100,7 +178,7 @@ export async function loadPricingInputs(
   if (!profile) throw new SupplierProfileMissingError()
   const supplier = toSupplierSnapshot(profile)
 
-  const [{ lookup, customerProfile }, catalog, scenarioRows] = await Promise.all([
+  const [{ lookup, customerProfile }, catalog, inventory, deadstock, scenarioRows] = await Promise.all([
     loadParameters(
       em,
       { tenantId: scope.tenantId, organizationId: scope.organizationId, date: scope.date },
@@ -111,6 +189,20 @@ export async function loadPricingInputs(
       container,
       { tenantId: scope.tenantId, organizationId: scope.organizationId },
       productIds,
+    ),
+    loadInventorySnapshot(
+      em,
+      container,
+      { tenantId: scope.tenantId, organizationId: scope.organizationId },
+      productIds,
+      variantIdByProductId,
+      { asOf: scope.date },
+    ),
+    loadAuthorisedDeadstockFloors(
+      em,
+      { tenantId: scope.tenantId, organizationId: scope.organizationId },
+      productIds,
+      scope.date,
     ),
     em.find(PricingOrderScenario, scopeFilter),
   ])
@@ -131,7 +223,7 @@ export async function loadPricingInputs(
   // code listed here that is not in force today simply resolves to null and is skipped.
   const orderScenarioCodes = Array.from(new Set(scenarioRows.map((row) => row.code)))
 
-  return { supplier, params: lookup, catalog, indicators, customerProfile, orderScenarioCodes }
+  return { supplier, params: lookup, catalog, inventory, deadstock, indicators, customerProfile, orderScenarioCodes }
 }
 
 // Idempotent: resolving an already-resolved context returns the same context, so callers that need
@@ -142,6 +234,7 @@ export function resolveEffectiveContext(
   overrides?: PriceOverrides,
 ): PricingContext {
   const { customerProfile, supplier } = inputs
+  assertCurrencyMatchesSupplier(context.currencyCode, supplier)
   return {
     ...context,
     customerGroupCode: context.customerGroupCode ?? customerProfile?.customerGroupCode ?? null,
@@ -192,6 +285,8 @@ export async function priceWithInputs(
     catalog: inputs.catalog,
     indicators: inputs.indicators,
     allocation: { shareByLineIndex: buildAllocation(effectiveContext, unitCostByLine) },
+    inventory: inputs.inventory,
+    deadstock: inputs.deadstock,
   }
 
   return runPipeline(effectiveContext, implementedComponents, componentDeps)
@@ -247,6 +342,7 @@ export function createPricingService(deps: {
           customerId: context.customerId ?? null,
         },
         context.lines.map((line) => line.productId),
+        variantIdsByProduct(context.lines),
       )
 
       const effectiveContext = resolveEffectiveContext(context, inputs, options.overrides)

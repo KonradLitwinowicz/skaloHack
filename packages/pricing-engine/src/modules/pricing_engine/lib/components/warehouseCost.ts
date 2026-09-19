@@ -1,12 +1,14 @@
-import { add, div, format, gt, max, money, mul, percentToFactor, toDecimal, ZERO } from '../decimal'
+import { add, div, format, gt, max, money, MONEY_DP, mul, percentToFactor, toDecimal, ZERO } from '../decimal'
 import { PRODUCT_COST_CODE } from './productCost'
 import type { Decimal } from '../decimal'
 import type {
   CatalogProductSnapshot,
   ComponentComputeArgs,
   ComponentResult,
+  InventoryRotationSource,
   PriceComponent,
   PricingConfidence,
+  ProductRotation,
   ScopeRefs,
   WarehouseCostSnapshot,
 } from '../types'
@@ -46,9 +48,9 @@ const POSITIVE_NUMERIC_TEXT = /^\d+(\.\d+)?$/
 
 const SHARE_DP = 6
 
-type OccupancySource = 'dimensions' | 'weight' | 'configured' | 'none'
+export type OccupancySource = 'dimensions' | 'weight' | 'configured' | 'none'
 
-type Occupancy = {
+export type Occupancy = {
   share: Decimal
   source: OccupancySource
   volumeM3: Decimal | null
@@ -96,7 +98,14 @@ function readUnitWeightKg(product: CatalogProductSnapshot | null): Decimal | nul
   return mul(weight, kilograms)
 }
 
-function resolveOccupancy(
+/**
+ * Share of one storage unit that a single product unit takes up.
+ *
+ * Exported so the deadstock screen charges rent on exactly the same footprint a quote charges it
+ * on. Two different occupancy figures for one product would make the two screens disagree about
+ * what the warehouse costs, and the disagreement would be invisible.
+ */
+export function resolveOccupancy(
   warehouse: WarehouseCostSnapshot,
   product: CatalogProductSnapshot | null,
   configuredShare: Decimal | null,
@@ -130,10 +139,104 @@ function resolveOccupancy(
   return { share: ZERO, source: 'none', volumeM3, weightKg }
 }
 
-function explainKeyFor(source: OccupancySource): string {
-  if (source === 'configured') return 'pricing_engine.components.warehouseCost.explain.fallbackShare'
-  if (source === 'none') return 'pricing_engine.components.warehouseCost.explain.capitalOnly'
-  return 'pricing_engine.components.warehouseCost.explain.estimated'
+// Turnover days: measured where the facts exist, assumed where they do not.
+//
+// WMS records stock history in `wms_inventory_movements` and `deps.inventory` carries the cover
+// days derived from it, so this figure is no longer an unconditional assumption. What a stock
+// deployment still lacks is the ISSUE side of that history: `wms.inventory` writes `receipt`,
+// `adjust` and `cycle_count`, and its `move` command relocates within a single warehouse, which
+// nets to zero. Until picking and shipping are recorded, `computeRotation` returns one of the
+// non-measured sources and this component stays on `defaultTurnoverDays` — and says so, through
+// `turnoverSource`, a warning naming the reason, and the confidence it reports.
+const ROTATION_WARNING_KEYS: Record<InventoryRotationSource, string | null> = {
+  movements: null,
+  no_movements: 'pricing_engine.warnings.warehouseRotationNoMovements',
+  no_issues: 'pricing_engine.warnings.warehouseRotationNoIssues',
+  no_stock: 'pricing_engine.warnings.warehouseRotationNoStock',
+  short_history: 'pricing_engine.warnings.warehouseRotationShortHistory',
+  unavailable: 'pricing_engine.warnings.warehouseRotationUnavailable',
+}
+
+const TURNOVER_DP = 1
+
+type Turnover = {
+  days: Decimal
+  source: InventoryRotationSource
+  measured: boolean
+  observedDays: number
+  dailyIssueRate: string
+  onHandQuantity: string
+  issuedQuantity: string
+}
+
+function resolveTurnover(warehouse: WarehouseCostSnapshot, rotation: ProductRotation | null): Turnover {
+  const configuredDays = toDecimal(String(warehouse.defaultTurnoverDays))
+  if (!rotation) {
+    return {
+      days: configuredDays,
+      source: 'unavailable',
+      measured: false,
+      observedDays: 0,
+      dailyIssueRate: '0.0000',
+      onHandQuantity: '0.0000',
+      issuedQuantity: '0.0000',
+    }
+  }
+  // A snapshot that merely carries the `movements` label is not a measurement: only a cover figure
+  // actually computed from issues may displace the configured default.
+  const measured = rotation.source === 'movements' && rotation.coverDays !== null
+  return {
+    days: measured ? toDecimal(rotation.coverDays as string) : configuredDays,
+    source: rotation.source,
+    measured,
+    observedDays: rotation.observedDays,
+    dailyIssueRate: rotation.dailyIssueRate,
+    onHandQuantity: rotation.onHandQuantity,
+    issuedQuantity: rotation.issuedQuantity,
+  }
+}
+
+const CONFIDENCE_RANK: Record<PricingConfidence, number> = { default: 0, estimated: 1, measured: 2 }
+
+function lowerConfidence(left: PricingConfidence, right: PricingConfidence): PricingConfidence {
+  return CONFIDENCE_RANK[left] <= CONFIDENCE_RANK[right] ? left : right
+}
+
+/**
+ * The component reports the LOWER of its two dimensions, occupancy and rotation.
+ *
+ * Occupancy is capped at `estimated` even when the product carries real dimensions, because the
+ * pallet-slot envelope those dimensions are divided by is an assumed geometry, not a survey of this
+ * distributor's racking. That cap is the existing invariant of this file and the geometry has not
+ * changed, so a measured rotation cannot lift the component to `measured` — taking the lower of the
+ * two is exactly what keeps it from doing so, and that is the whole truth about the measurement.
+ *
+ * A non-measured rotation sits at `estimated` rather than `default`: the configured turnover is a
+ * parameter row of the same standing as the rest of the warehouse configuration, and it is declared
+ * through `warehouseTurnoverAssumed` instead. What drops this component to `default` is failing to
+ * establish how much space the unit takes at all.
+ */
+function resolveConfidence(occupancy: OccupancySource, measuredRotation: boolean): PricingConfidence {
+  const fromOccupancy: PricingConfidence =
+    occupancy === 'dimensions' || occupancy === 'weight' ? 'estimated' : 'default'
+  const fromRotation: PricingConfidence = measuredRotation ? 'measured' : 'estimated'
+  return lowerConfidence(fromOccupancy, fromRotation)
+}
+
+function explainKeyFor(source: OccupancySource, measuredRotation: boolean): string {
+  if (source === 'configured') {
+    return measuredRotation
+      ? 'pricing_engine.components.warehouseCost.explain.fallbackShareMeasured'
+      : 'pricing_engine.components.warehouseCost.explain.fallbackShare'
+  }
+  if (source === 'none') {
+    return measuredRotation
+      ? 'pricing_engine.components.warehouseCost.explain.capitalOnlyMeasured'
+      : 'pricing_engine.components.warehouseCost.explain.capitalOnly'
+  }
+  return measuredRotation
+    ? 'pricing_engine.components.warehouseCost.explain.estimatedMeasured'
+    : 'pricing_engine.components.warehouseCost.explain.estimated'
 }
 
 async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
@@ -175,12 +278,15 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   if (occupancy.source === 'configured') warnings.push('pricing_engine.warnings.warehouseOccupancyFallback')
   if (occupancy.source === 'none') warnings.push('pricing_engine.warnings.warehouseOccupancyMissing')
 
-  // TODO(data-source): no stock-history module exists yet, so days-on-hand can only come from the
-  // configured default. Until receipts and issues are recorded per product this component is
-  // `estimated` at best, never `measured`, however complete the rest of the configuration is.
-  warnings.push('pricing_engine.warnings.warehouseTurnoverAssumed')
+  const stock = deps.inventory?.byProductId.get(line.productId) ?? null
+  const turnover = resolveTurnover(warehouse, stock?.rotation ?? null)
+  if (!turnover.measured) {
+    warnings.push('pricing_engine.warnings.warehouseTurnoverAssumed')
+    const reasonKey = ROTATION_WARNING_KEYS[turnover.source]
+    if (reasonKey) warnings.push(reasonKey)
+  }
 
-  const turnoverDays = toDecimal(String(warehouse.defaultTurnoverDays))
+  const turnoverDays = turnover.days
   const spaceCost = mul(
     mul(occupancy.share, toDecimal(warehouse.costPerMonth)),
     div(turnoverDays, DAYS_PER_MONTH),
@@ -198,8 +304,7 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   )
   const perUnit = add(spaceCost, capitalCost)
 
-  const confidence: PricingConfidence =
-    occupancy.source === 'dimensions' || occupancy.source === 'weight' ? 'estimated' : 'default'
+  const confidence = resolveConfidence(occupancy.source, turnover.measured)
 
   return {
     code: WAREHOUSE_COST_CODE,
@@ -216,6 +321,12 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
       unitCostNet: money(unitCostNet),
       spaceCost: money(spaceCost),
       capitalCost: money(capitalCost),
+      turnoverDays: format(turnoverDays, MONEY_DP),
+      turnoverSource: turnover.source,
+      observedDays: turnover.observedDays,
+      dailyIssueRate: turnover.dailyIssueRate,
+      onHandQuantity: turnover.onHandQuantity,
+      issuedQuantity: turnover.issuedQuantity,
     },
     params: {
       basis: warehouse.basis,
@@ -224,11 +335,11 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
       defaultTurnoverDays: warehouse.defaultTurnoverDays,
       componentParamRef: deps.params.componentParamRef(WAREHOUSE_COST_CODE, scopeRefs),
     },
-    explainKey: explainKeyFor(occupancy.source),
+    explainKey: explainKeyFor(occupancy.source, turnover.measured),
     explainValues: {
       sku,
       occupancyShare: format(occupancy.share, SHARE_DP),
-      turnoverDays: warehouse.defaultTurnoverDays,
+      turnoverDays: format(turnoverDays, TURNOVER_DP),
       spaceCost: money(spaceCost),
       capitalCost: money(capitalCost),
       perUnit: money(perUnit),

@@ -1,3 +1,387 @@
+--- a/.ai/lessons.md
++++ b/.ai/lessons.md
+@@ -1,6 +1,6 @@
+ # Lessons
+ 
+-This catalog indexes 133 focused lessons. Route the task first, then read only records whose modules, areas, or topics match the work.
++This catalog indexes 136 focused lessons. Route the task first, then read only records whose modules, areas, or topics match the work.
+ 
+ ## How to use this catalog
+ 
+@@ -124,6 +124,8 @@
+ - [Shared candidate sets must stay identical across display and validation consumers](lessons/shared-candidate-sets-must-stay-identical-across-display.md) — area:backend-ui,testing; module:customers; topic:filters,testing,ui-components
+ - [Sidebar hydration must preserve the exact RBAC inclusion semantics of the server layout](lessons/sidebar-hydration-must-preserve-the-exact-rbac.md) — area:backend-ui,debugging; module:ui; topic:access-control,data-scoping,generated-files
+ - [Standardize record-not-found as a dedicated page state in backend UI](lessons/standardize-record-not-found-as-a-dedicated-page-state.md) — area:backend-ui,debugging; module:ui,auth,customers; topic:error-states,ui-components
++- [Derived times on one screen must share the server's reference instant, not the browser clock](lessons/derived-times-on-one-screen-must-share-the-servers-reference-instant.md) — area:backend-ui,testing; module:ui,pricing_engine; topic:ui-components,data-integrity
++- [User-facing numbers and dates must use the app locale, never navigator.language](lessons/user-facing-numbers-and-dates-must-use-the-app-locale.md) — area:backend-ui,testing; module:ui,pricing_engine; topic:ui-components,testing
+ 
+ ### integration
+ 
+@@ -178,6 +180,7 @@
+ - [Scope Playwright `testIgnore` entries to project root absolute paths](lessons/scope-playwright-testignore-entries-to-project-root.md) — area:testing,integration; module:platform; topic:data-scoping,testing,type-normalization
+ - [Use cryptographic randomness in auth-adjacent test helpers](lessons/use-cryptographic-randomness-in-auth-adjacent-test.md) — area:testing,integration,module-data; module:auth,cache,communication_channels; topic:data-scoping,generated-files,filters
+ - [Use the bundled Node runtime for sandboxed macOS verification](lessons/use-the-bundled-node-runtime-for-sandboxed-macos.md) — area:testing,debugging; module:platform,create_app; topic:testing,node-runtime
++- [Logic that cannot be imported has no test coverage, however many component tests exist](lessons/logic-that-cannot-be-imported-has-no-test-coverage.md) — area:testing,backend-ui; module:ui,pricing_engine; topic:testing,ui-components
+ - [When a task brief requires Playwright coverage, unit tests are not a substitute](lessons/when-a-task-brief-requires-playwright-coverage-unit.md) — area:testing; module:events,search; topic:events,module-boundaries,testing
+ 
+ ### framework-context
+--- a/apps/mercato/jest.config.cjs
++++ b/apps/mercato/jest.config.cjs
+@@ -27,6 +27,7 @@
+     '^@open-mercato/events/(.*)$': '<rootDir>/../../packages/events/src/$1',
+     '^@open-mercato/cli/(.*)$': '<rootDir>/../../packages/cli/src/$1',
+     '^@open-mercato/content/(.*)$': '<rootDir>/../../packages/content/src/$1',
++    '^@open-mercato/pricing-engine/(.*)$': '<rootDir>/../../packages/pricing-engine/src/$1',
+   },
+   transform: {
+     '^.+\\.(t|j)sx?$': [
+--- a/apps/mercato/package.json
++++ b/apps/mercato/package.json
+@@ -46,6 +46,7 @@
+     "@open-mercato/events": "workspace:*",
+     "@open-mercato/gateway-stripe": "workspace:*",
+     "@open-mercato/onboarding": "workspace:*",
++    "@open-mercato/pricing-engine": "workspace:*",
+     "@open-mercato/queue": "workspace:*",
+     "@open-mercato/scheduler": "workspace:*",
+     "@open-mercato/search": "workspace:*",
+--- a/apps/mercato/src/i18n/de.json
++++ b/apps/mercato/src/i18n/de.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Zum Login",
+   "app.metadata.description": "KI-unterstützte, modulare ERP-Basis für Produkt- und Dienstleistungsunternehmen",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reklamationen",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Aktive Module",
+   "app.page.dbStatus.connected": "Verbunden",
+   "app.page.dbStatus.error": "Fehler: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Für dein Konto sind noch keine Widgets verfügbar.",
+   "dashboard.error.partial": "Einige Änderungen wurden nicht gespeichert",
+   "dashboard.error.reload": "Daten neu laden",
++  "dashboard.greeting": "Hallo, {name}",
+   "dashboard.loadError": "Dashboard-Daten konnten nicht geladen werden. Bitte versuche es später erneut.",
+   "dashboard.retry": "Erneut versuchen",
+   "dashboard.saveError": "Dashboard-Layout konnte nicht gespeichert werden.",
+--- a/apps/mercato/src/i18n/en.json
++++ b/apps/mercato/src/i18n/en.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Go to Login",
+   "app.metadata.description": "AI‑supportive, modular ERP foundation for product & service companies",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Claims",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Active Modules",
+   "app.page.dbStatus.connected": "Connected",
+   "app.page.dbStatus.error": "Error: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "No widgets are available for your account yet.",
+   "dashboard.error.partial": "Some changes were not saved",
+   "dashboard.error.reload": "Reload data",
++  "dashboard.greeting": "Hi, {name}",
+   "dashboard.loadError": "Unable to load dashboard data. Please try again later.",
+   "dashboard.retry": "Retry",
+   "dashboard.saveError": "Unable to save dashboard layout changes.",
+--- a/apps/mercato/src/i18n/es.json
++++ b/apps/mercato/src/i18n/es.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Ir a iniciar sesión",
+   "app.metadata.description": "Base ERP modular compatible con IA para empresas de productos y servicios",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reclamaciones",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Módulos activos",
+   "app.page.dbStatus.connected": "Conectado",
+   "app.page.dbStatus.error": "Error: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Todavía no hay widgets disponibles para tu cuenta.",
+   "dashboard.error.partial": "Algunos cambios no se guardaron",
+   "dashboard.error.reload": "Recargar datos",
++  "dashboard.greeting": "Hola, {name}",
+   "dashboard.loadError": "No se pudieron cargar los datos del panel. Inténtalo de nuevo más tarde.",
+   "dashboard.retry": "Reintentar",
+   "dashboard.saveError": "No se pudieron guardar los cambios del panel.",
+--- a/apps/mercato/src/i18n/ko.json
++++ b/apps/mercato/src/i18n/ko.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "로그인으로 이동",
+   "app.metadata.description": "제품 및 서비스 기업을 위한 AI 지원 모듈형 ERP 기반",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "클레임",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "활성 모듈",
+   "app.page.dbStatus.connected": "연결됨",
+   "app.page.dbStatus.error": "오류: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "아직 계정에서 사용할 수 있는 위젯이 없습니다.",
+   "dashboard.error.partial": "일부 변경 사항이 저장되지 않았습니다",
+   "dashboard.error.reload": "데이터 다시 불러오기",
++  "dashboard.greeting": "{name}님, 안녕하세요",
+   "dashboard.loadError": "대시보드 데이터를 불러올 수 없습니다. 나중에 다시 시도해 주세요.",
+   "dashboard.retry": "다시 시도",
+   "dashboard.saveError": "대시보드 레이아웃 변경 사항을 저장할 수 없습니다.",
+--- a/apps/mercato/src/i18n/pl.json
++++ b/apps/mercato/src/i18n/pl.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Przejdź do logowania",
+   "app.metadata.description": "Modularna podstawa ERP z obsługą AI dla firm produkcyjnych i usługowych",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reklamacje",
++  "app.nav.groups.daily": "Codzienna praca",
++  "app.nav.groups.pricingSettings": "Ustawienia wyceny",
++  "app.nav.groups.records": "Klienci i towar",
+   "app.page.activeModules.title": "Aktywne moduły",
+   "app.page.dbStatus.connected": "Połączono",
+   "app.page.dbStatus.error": "Błąd: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Brak dostępnych widżetów dla Twojego konta.",
+   "dashboard.error.partial": "Niektóre zmiany nie zostały zapisane",
+   "dashboard.error.reload": "Ponownie wczytaj dane",
++  "dashboard.greeting": "Cześć, {name}",
+   "dashboard.loadError": "Nie udało się wczytać danych pulpitu. Spróbuj ponownie później.",
+   "dashboard.retry": "Spróbuj ponownie",
+   "dashboard.saveError": "Nie udało się zapisać zmian układu pulpitu.",
+--- a/apps/mercato/src/modules.ts
++++ b/apps/mercato/src/modules.ts
+@@ -7,7 +7,7 @@
+ //   See `.ai/specs/implemented/2026-05-04-modules-ts-unified-overrides.md` and
+ //   `apps/docs/docs/framework/modules/overrides.mdx`.
+ import { parseBooleanWithDefault } from '@open-mercato/shared/lib/boolean'
+-import type { ModuleOverrides } from '@open-mercato/shared/modules/overrides'
++import type { ModuleOverrides, PageRouteOverridesMap } from '@open-mercato/shared/modules/overrides'
+ import { officialModuleEntries } from './official-modules.generated'
+ 
+ export type ModuleEntry = {
+@@ -68,6 +68,181 @@
+   },
+ }
+ 
++/**
++ * Distributor workspace information architecture — spec
++ * `.ai/specs/2026-09-18-distributor-margin-workspace.md`, Deliverable D.
++ *
++ * Page overrides are the only mechanism that re-homes a page into a different sidebar group:
++ * menu injection only appends new groups, and sidebar preferences cannot move an item across a
++ * group boundary. Because `overrides.routes.pages` is keyed globally by path
++ * (`packages/shared/src/modules/overrides.ts` → `applyPageOverridesToManifests`), this app-side
++ * block regroups pages owned by `@open-mercato/core` and `@open-mercato/pricing-engine` without
++ * editing either package.
++ *
++ * The grouping axis is HOW OFTEN a wholesale operator opens a screen, not which engine owns it.
++ * The previous revision grouped by domain and produced sidebar headings that promised work and
++ * delivered rate tables — a group called "Delivery" that held fuel prices and vehicle fuel
++ * consumption and not one delivery. A heading that lies is worse than no heading, because the
++ * operator pays the click before learning it. Three tiers replace it:
++ *   - `daily` — the sell-and-ship loop, in the order the day runs it.
++ *   - `records` — the ledgers that loop reads from: who buys, what is sold, what is in stock.
++ *   - `pricingSettings` — every rate table, in one drawer, last, named for what it holds.
++ * `claims` keeps its own heading: warranty work is real work, just not every day.
++ *
++ * `groupKey` becomes the sidebar group id and is looked up in `apps/mercato/src/i18n/*.json`;
++ * `group` is the literal a locale without that key falls back to, so it stays English.
++ *
++ * `priority` has to be restated per page: `resolveNavItemWeight` reads `priority ?? order`, and
++ * every page in these modules already declares a single per-module priority, which collapses the
++ * declared `order` values and leaves the group sorted alphabetically by title.
++ */
++type DistributorNavPage = {
++  path: string
++  priority: number
++}
++
++type DistributorNavGroup = {
++  id: string
++  defaultName: string
++  pages: readonly DistributorNavPage[]
++}
++
++export const distributorNavGroups: readonly DistributorNavGroup[] = [
++  {
++    id: 'app.nav.groups.daily',
++    defaultName: 'Daily work',
++    pages: [
++      { path: '/backend/sales/orders', priority: 10 },
++      // Directly under the order list, because it answers the question the operator opens that
++      // list to ask — what is coming — before the orders that have already arrived.
++      { path: '/backend/predicted-orders', priority: 15 },
++      { path: '/backend/sales/quotes', priority: 20 },
++      { path: '/backend/pricing/calculator', priority: 30 },
++      { path: '/backend/pricing/advisor', priority: 40 },
++      { path: '/backend/sales/documents/create', priority: 50 },
++      { path: '/backend/customer-tasks', priority: 60 },
++      { path: '/backend/calendar', priority: 70 },
++      // Pulled up out of its own single-item group: a customer thread is read as often as an
++      // order is, and it arrived while the operator was already looking at this list.
++      { path: '/backend/messages', priority: 80 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.records',
++    defaultName: 'Customers and stock',
++    pages: [
++      { path: '/backend/customers/companies', priority: 10 },
++      { path: '/backend/customers/companies/create', priority: 11 },
++      { path: '/backend/customers/people', priority: 20 },
++      { path: '/backend/customers/people/create', priority: 21 },
++      { path: '/backend/customers/deals', priority: 30 },
++      { path: '/backend/customers/deals/create', priority: 31 },
++      { path: '/backend/customers/deals/pipeline', priority: 32 },
++      { path: '/backend/customers/deals/map', priority: 33 },
++      { path: '/backend/catalog/products', priority: 40 },
++      { path: '/backend/catalog/products/create', priority: 41 },
++      { path: '/backend/catalog/categories', priority: 50 },
++      { path: '/backend/catalog/categories/create', priority: 51 },
++      { path: '/backend/wms', priority: 60 },
++      { path: '/backend/wms/inventory', priority: 61 },
++      { path: '/backend/wms/warehouses', priority: 62 },
++      { path: '/backend/wms/zones', priority: 63 },
++      { path: '/backend/wms/locations', priority: 64 },
++      { path: '/backend/wms/lots', priority: 65 },
++      { path: '/backend/wms/movements', priority: 66 },
++      { path: '/backend/wms/reservations', priority: 67 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.claims',
++    defaultName: 'Claims',
++    pages: [
++      { path: '/backend/warranty_claims', priority: 10 },
++      { path: '/backend/warranty_claims/create', priority: 11 },
++      { path: '/backend/warranty_claims/registrations', priority: 20 },
++      { path: '/backend/warranty_claims/registrations/create', priority: 21 },
++      { path: '/backend/warranty_claims/vendor-policies', priority: 30 },
++      { path: '/backend/warranty_claims/vendor-policies/create', priority: 31 },
++      { path: '/backend/warranty_claims/troubleshooting-guides', priority: 40 },
++      { path: '/backend/warranty_claims/troubleshooting-guides/create', priority: 41 },
++      { path: '/backend/warranty_claims/settings', priority: 90 },
++    ],
++  },
++  {
++    /**
++     * Every `/backend/pricing/params/*` screen, ordered by how likely the operator is to be the
++     * one who opens it: margin policy first, then the cost inputs the engine derives from, with
++     * fleet and fuel last. Nothing here is edited while quoting — it was filled in at rollout and
++     * is revisited when a rate card changes, so the whole drawer sits after the daily tiers.
++     */
++    id: 'app.nav.groups.pricingSettings',
++    defaultName: 'Pricing settings',
++    pages: [
++      { path: '/backend/pricing/params/margin-rules', priority: 10 },
++      { path: '/backend/pricing/params/guardrails', priority: 20 },
++      { path: '/backend/pricing/params/objectives', priority: 30 },
++      { path: '/backend/pricing/params/purchase-positions', priority: 40 },
++      { path: '/backend/pricing/params/labor-rates', priority: 50 },
++      { path: '/backend/pricing/params/process-steps', priority: 60 },
++      { path: '/backend/pricing/params/order-scenarios', priority: 70 },
++      { path: '/backend/pricing/params/warehouse-costs', priority: 80 },
++      { path: '/backend/pricing/params/packaging-costs', priority: 90 },
++      { path: '/backend/pricing/params/delivery-zones', priority: 100 },
++      { path: '/backend/pricing/params/vehicles', priority: 110 },
++      { path: '/backend/pricing/params/fuel-prices', priority: 120 },
++    ],
++  },
++]
++
++/**
++ * Screens that keep working at their URL and stop occupying a sidebar slot.
++ *
++ * `navHidden` is read only by `packages/ui/src/backend/utils/nav.ts` when it builds the sidebar;
++ * the manifest entry keeps its loader, so every path below still renders for anyone who has the
++ * feature and follows a link, a bookmark or a breadcrumb.
++ *
++ * Why each one:
++ *   - `shadow-observations` — a diagnostic ledger of what the pricing engine WOULD have charged
++ *     against what sales actually invoiced. It is a reporting label, not a control: no component
++ *     and no pipeline stage reads it, and no row here ever moved a sales amount. The writer is
++ *     gated behind `OM_PRICING_SHADOW_OBSERVE`, which is unset, so the table holds zero rows and
++ *     will hold zero rows until someone turns observation on deliberately.
++ *   - `playground` — a what-if bench for the engine's parameters. The operator quotes on the
++ *     calculator; the playground answers a question only whoever tunes the parameters asks.
++ *   - `coverage` — the register of which pricing components rest on measured data and which rest
++ *     on defaults. Honest and worth having, but it answers "can I trust this number?" in a
++ *     different place from where the number is shown, and mid-phone-call nobody navigates away to
++ *     ask. The advisor and calculator already carry that answer inline on the figure itself
++ *     (`ConfidenceBadge`), which is where the question is actually asked.
++ *   - `docs` — the OpenAPI browser. An integrator's screen that reached the operator's sidebar.
++ *
++ * This is a path-keyed override with no role dimension, so the four disappear from every role's
++ * sidebar, administrators included. That is the intended trade for this app: all four remain one
++ * typed URL away, and none of them is a screen a sidebar is the right entry point for.
++ */
++export const distributorNavHiddenPages: readonly string[] = [
++  '/backend/pricing/shadow-observations',
++  '/backend/pricing/playground',
++  '/backend/pricing/coverage',
++  '/backend/docs',
++]
++
++export const distributorNavGroupOrder: readonly string[] = distributorNavGroups.map((group) => group.id)
++
++export const distributorNavPageOverrides: PageRouteOverridesMap = {
++  ...Object.fromEntries(
++    distributorNavGroups.flatMap((group) =>
++      group.pages.map((page) => [
++        page.path,
++        { metadata: { group: group.defaultName, groupKey: group.id, priority: page.priority } },
++      ]),
++    ),
++  ),
++  ...Object.fromEntries(
++    distributorNavHiddenPages.map((path) => [path, { metadata: { navHidden: true } }]),
++  ),
++}
++
+ export const enabledModules: ModuleEntry[] = [
+   { id: 'dashboards', from: '@open-mercato/core' },
+   { id: 'auth', from: '@open-mercato/core' },
+@@ -81,6 +256,12 @@
+   { id: 'attachments', from: '@open-mercato/core' },
+   { id: 'catalog', from: '@open-mercato/core' },
+   { id: 'sales', from: '@open-mercato/core' },
++  // MUST stay after `sales`: DI registrars run in this order, and pricing_engine wraps the
++  // `salesCalculationService` binding that `sales` registers. The wrapper only RECORDS what the
++  // pricing engine would have charged, returning the base service's own result untouched — no sales
++  // amount is ever altered, and observing is off unless OM_PRICING_SHADOW_OBSERVE says otherwise.
++  // Listed first, the binding would go unwrapped and the observation would be silently dead.
++  { id: 'pricing_engine', from: '@open-mercato/pricing-engine' },
+   { id: 'warranty_claims', from: '@open-mercato/core' },
+   { id: 'wms', from: '@open-mercato/core' },
+   { id: 'api_keys', from: '@open-mercato/core' },
+@@ -164,6 +345,25 @@
+       },
+     },
+   },
++  // Wholesale-distributor workspace: the `distributor` role plus the manually-run HoReCa
++  // seeders. Listed after catalog / customers / auth / customer_accounts / pricing_engine
++  // because its seeders write into those modules' entities and its role grants reference
++  // their ACL features.
++  {
++    id: 'distributor_workspace',
++    from: '@app',
++    overrides: {
++      routes: { pages: distributorNavPageOverrides },
++      nav: {
++        // Sidebar group ordering is a single app-wide decision and the last module entry to declare
++        // it wins. The `example` entry above declares its own probe order under OM_INTEGRATION_TEST
++        // and is evaluated first, so that id is restated here rather than silently dropped.
++        groupOrder: parseBooleanWithDefault(process.env.OM_INTEGRATION_TEST, false)
++          ? ['example.nav.group', ...distributorNavGroupOrder]
++          : [...distributorNavGroupOrder],
++      },
++    },
++  },
+   { id: 'ratelimit_probe', from: '@app' },
+ ]
+ 
 --- a/Dockerfile
 +++ b/Dockerfile
 @@ -33,6 +33,7 @@
@@ -55,6 +439,2835 @@
 +    },
 +  },
  ]
+--- a/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
++++ b/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
+@@ -158,7 +158,26 @@
+     // provenance entries and override targets to every render. The
+     // `warranty_claims` module (see above) lands alongside it, so the cap
+     // absorbs both additions.
+-    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_000_000)
++    //
++    // JSON cap raised a sixth time by the `pricing_engine` module
++    // (2026-09-18-pricing-engine-module): twenty entities, eight ACL features,
++    // twenty DI tokens, four events, four API routes and two backend pages cost
++    // 68.5KB of facts and provenance references (3,978,803 -> 4,047,325 bytes),
++    // measured by extracting with and without the package present. That is linear
++    // growth proportional to the module's surface, not the multiplicative blow-up
++    // this detector exists to catch. Markdown grew 24.9KB and directory markdown
++    // 26.5KB, both well inside their existing caps, so only this cap moves.
++    //
++    // JSON cap raised a seventh time by the pricing parameter screens and the
++    // distributor ordering portal: `pricing_engine` went from four API routes and
++    // two backend pages to fifteen routes and thirty-five pages, and
++    // `distributor_workspace` added three portal routes and one portal page.
++    // Facts and provenance grew 54.4KB for that (4,047,325 -> 4,103,039 bytes) —
++    // roughly 1.2KB a route/page, the same per-surface cost the sixth raise
++    // measured, so this is the linear growth the cap is meant to allow rather
++    // than the multiplicative blow-up it exists to catch. Markdown and directory
++    // markdown both stayed inside their caps, so again only this cap moves.
++    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_160_000)
+     expect(Buffer.byteLength(completeJson) - Buffer.byteLength(legacyJson)).toBeLessThan(1_800_000)
+     // Markdown cap raised with the source-link contract: entities, events, ACL
+     // features, DI tokens, search entities, notifications, UMES hosts and UMES
+--- a/packages/core/src/modules/catalog/di.ts
++++ b/packages/core/src/modules/catalog/di.ts
+@@ -2,7 +2,7 @@
+ import type { EventBus } from '@open-mercato/events'
+ import type { AppContainer } from '@open-mercato/shared/lib/di/container'
+ import { DefaultCatalogPricingService } from './services/catalogPricingService'
+-import { CatalogProduct, CatalogProductPrice } from './data/entities'
++import { CatalogProduct, CatalogProductPrice, CatalogProductUnitConversion } from './data/entities'
+ 
+ type AppCradle = AppContainer['cradle'] & {
+   eventBus?: EventBus | null
+@@ -17,5 +17,9 @@
+       .proxy(),
+     CatalogProduct: asValue(CatalogProduct),
+     CatalogProductPrice: asValue(CatalogProductPrice),
++    // Exposed for optional peers that need packaging ladders without an ORM relation into catalog
++    // (pricing_engine's `packaging_cost` resolves this class by name, the same seam it uses for
++    // CatalogProduct). Additive: no existing consumer changes.
++    CatalogProductUnitConversion: asValue(CatalogProductUnitConversion),
+   })
+ }
+--- a/packages/core/src/modules/customers/widgets/dashboard/customer-todos/widget.client.tsx
++++ b/packages/core/src/modules/customers/widgets/dashboard/customer-todos/widget.client.tsx
+@@ -1,11 +1,19 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { ListChecks } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { Input } from '@open-mercato/ui/primitives/input'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowAvatar,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
++import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import { DEFAULT_SETTINGS, hydrateCustomerTodoSettings, type CustomerTodoWidgetSettings } from './config'
+ import { resolveExampleIntegrationHref } from '../../../lib/interactionCompatibility'
+@@ -75,13 +83,6 @@
+     .filter((item): item is TodoLinkSummary => !!item && !!item.id)
+ }
+ 
+-function formatDate(value: string | null, locale?: string): string {
+-  if (!value) return ''
+-  const date = new Date(value)
+-  if (Number.isNaN(date.getTime())) return ''
+-  return date.toLocaleString(locale ?? undefined)
+-}
+-
+ function resolveDetailHref(entity: { id: string | null; kind: string | null } | null | undefined): string | null {
+   if (!entity?.id) return null
+   if (entity.kind === 'company') return `/backend/customers/companies-v2/${encodeURIComponent(entity.id)}`
+@@ -154,55 +155,42 @@
+     )
+   }
+ 
++  if (error) {
++    return <WidgetError message={error} />
++  }
++
++  if (loading) {
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
++  }
++
++  if (items.length === 0) {
++    return (
++      <WidgetEmpty
++        icon={<ListChecks className="size-5" />}
++        title={t('customers.widgets.todos.empty')}
++      />
++    )
++  }
++
+   return (
+-    <div className="space-y-4">
+-      {error ? (
+-        <p className="text-sm text-destructive">{error}</p>
+-      ) : loading ? (
+-        <div className="flex h-32 items-center justify-center">
+-          <Spinner className="h-6 w-6 text-muted-foreground" />
+-        </div>
+-      ) : items.length === 0 ? (
+-        <p className="text-sm text-muted-foreground">{t('customers.widgets.todos.empty')}</p>
+-      ) : (
+-        <ul className="space-y-3">
+-          {items.map((item) => {
+-            const createdLabel = formatDate(item.createdAt, locale)
+-            const href = resolveDetailHref(item.entity)
+-            const exampleHref = resolveExampleIntegrationHref(item)
+-            const taskHref = exampleHref ?? resolveTodoHref(item.todoSource, item.todoId)
+-            return (
+-              <li key={item.id} className="rounded-md border p-3">
+-                <div className="flex items-start justify-between gap-3 text-sm font-medium">
+-                  <span>{item.entity.displayName ?? t('customers.widgets.common.unknown')}</span>
+-                  <span className="text-xs text-muted-foreground">{createdLabel || t('customers.widgets.common.unknownDate')}</span>
+-                </div>
+-                <div className="mt-1 space-y-0.5">
+-                  <p className="text-sm font-medium text-foreground">
+-                    {item.todoTitle ?? t('customers.widgets.todos.untitled')}
+-                  </p>
+-                  {item.todoSource ? (
+-                    <p className="text-xs text-muted-foreground">{item.todoSource}</p>
+-                  ) : null}
+-                </div>
+-                <div className="mt-2 flex flex-wrap gap-3 text-xs">
+-                  {href ? (
+-                    <Link className="text-primary hover:underline" href={href}>
+-                      {t('customers.widgets.common.viewRecord')}
+-                    </Link>
+-                  ) : null}
+-                  {taskHref ? (
+-                    <Link className="text-primary hover:underline" href={taskHref}>
+-                      {t('customers.workPlan.customerTodos.table.actions.openTask')}
+-                    </Link>
+-                  ) : null}
+-                </div>
+-              </li>
+-            )
+-          })}
+-        </ul>
+-      )}
+-    </div>
++    <WidgetList>
++      {items.map((item) => {
++        const customerName = item.entity.displayName ?? t('customers.widgets.common.unknown')
++        const exampleHref = resolveExampleIntegrationHref(item)
++        const taskHref = exampleHref ?? resolveTodoHref(item.todoSource, item.todoId)
++        return (
++          <WidgetListRow
++            key={item.id}
++            href={taskHref ?? resolveDetailHref(item.entity)}
++            ariaLabel={t('customers.workPlan.customerTodos.table.actions.openTask')}
++            leading={<WidgetRowAvatar label={customerName} />}
++            title={item.todoTitle ?? t('customers.widgets.todos.untitled')}
++            subtitle={customerName}
++            meta={formatRelativeTime(item.createdAt, { locale }) ?? t('customers.widgets.common.unknownDate')}
++          />
++        )
++      })}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/customers/widgets/dashboard/new-customers/widget.client.tsx
++++ b/packages/core/src/modules/customers/widgets/dashboard/new-customers/widget.client.tsx
+@@ -1,7 +1,7 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { UserPlus } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { Input } from '@open-mercato/ui/primitives/input'
+@@ -12,7 +12,15 @@
+   SelectTrigger,
+   SelectValue,
+ } from '@open-mercato/ui/primitives/select'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowAvatar,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
++import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import {
+   DEFAULT_SETTINGS,
+@@ -72,13 +80,6 @@
+   return null
+ }
+ 
+-function formatDate(value: string | null, locale?: string): string {
+-  if (!value) return ''
+-  const date = new Date(value)
+-  if (Number.isNaN(date.getTime())) return ''
+-  return date.toLocaleString(locale ?? undefined, { dateStyle: 'medium', timeStyle: 'short' })
+-}
+-
+ function formatKind(kind: string | null, t: (key: string) => string): string {
+   if (kind === 'person') return t('customers.widgets.newCustomers.kind.person')
+   if (kind === 'company') return t('customers.widgets.newCustomers.kind.company')
+@@ -171,43 +172,40 @@
+     )
+   }
+ 
++  if (error) {
++    return <WidgetError message={error} />
++  }
++
++  if (loading) {
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
++  }
++
++  if (items.length === 0) {
++    return (
++      <WidgetEmpty
++        icon={<UserPlus className="size-5" />}
++        title={t('customers.widgets.newCustomers.empty')}
++      />
++    )
++  }
++
+   return (
+-    <div className="space-y-4">
+-      {error ? (
+-        <p className="text-sm text-destructive">{error}</p>
+-      ) : loading ? (
+-        <div className="flex h-32 items-center justify-center">
+-          <Spinner className="h-6 w-6 text-muted-foreground" />
+-        </div>
+-      ) : items.length === 0 ? (
+-        <p className="text-sm text-muted-foreground">{t('customers.widgets.newCustomers.empty')}</p>
+-      ) : (
+-        <ul className="space-y-3">
+-          {items.map((item) => {
+-            const href = resolveDetailHref(item)
+-            const createdLabel = formatDate(item.createdAt, locale)
+-            return (
+-              <li key={item.id} className="rounded-md border p-3">
+-                <div className="flex items-start justify-between gap-3">
+-                  <div>
+-                    <p className="text-sm font-medium">{item.displayName ?? t('customers.widgets.common.unknown')}</p>
+-                    <p className="text-xs text-muted-foreground">{formatKind(item.kind, t)}</p>
+-                  </div>
+-                  <p className="text-xs text-muted-foreground">{createdLabel || t('customers.widgets.common.unknownDate')}</p>
+-                </div>
+-                {href ? (
+-                  <div className="mt-2 text-xs">
+-                    <Link className="text-primary hover:underline" href={href}>
+-                      {t('customers.widgets.common.viewRecord')}
+-                    </Link>
+-                  </div>
+-                ) : null}
+-              </li>
+-            )
+-          })}
+-        </ul>
+-      )}
+-    </div>
++    <WidgetList>
++      {items.map((item) => {
++        const displayName = item.displayName ?? t('customers.widgets.common.unknown')
++        return (
++          <WidgetListRow
++            key={item.id}
++            href={resolveDetailHref(item)}
++            ariaLabel={t('customers.widgets.common.viewRecord')}
++            leading={<WidgetRowAvatar label={displayName} />}
++            title={displayName}
++            subtitle={formatKind(item.kind, t)}
++            meta={formatRelativeTime(item.createdAt, { locale }) ?? t('customers.widgets.common.unknownDate')}
++          />
++        )
++      })}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/customers/widgets/dashboard/new-deals/widget.client.tsx
++++ b/packages/core/src/modules/customers/widgets/dashboard/new-deals/widget.client.tsx
+@@ -1,11 +1,20 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { Handshake } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { Input } from '@open-mercato/ui/primitives/input'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
++import { Tag } from '@open-mercato/ui/primitives/tag'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowIcon,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
++import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import { DEFAULT_SETTINGS, hydrateNewDealsSettings, type CustomerNewDealsSettings } from './config'
+ import { createLogger } from '@open-mercato/shared/lib/logger'
+@@ -54,13 +63,6 @@
+   return `/backend/customers/deals/${encodeURIComponent(item.id)}`
+ }
+ 
+-function formatDate(value: string | null, locale?: string): string {
+-  if (!value) return ''
+-  const date = new Date(value)
+-  if (Number.isNaN(date.getTime())) return ''
+-  return date.toLocaleString(locale ?? undefined, { dateStyle: 'medium', timeStyle: 'short' })
+-}
+-
+ const CustomerNewDealsWidget: React.FC<DashboardWidgetComponentProps<CustomerNewDealsSettings>> = ({
+   mode,
+   settings = DEFAULT_SETTINGS,
+@@ -125,43 +127,37 @@
+     )
+   }
+ 
++  if (error) {
++    return <WidgetError message={error} />
++  }
++
++  if (loading) {
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
++  }
++
++  if (items.length === 0) {
++    return (
++      <WidgetEmpty
++        icon={<Handshake className="size-5" />}
++        title={t('customers.widgets.newDeals.empty')}
++      />
++    )
++  }
++
+   return (
+-    <div className="space-y-4">
+-      {error ? (
+-        <p className="text-sm text-destructive">{error}</p>
+-      ) : loading ? (
+-        <div className="flex h-32 items-center justify-center">
+-          <Spinner className="h-6 w-6 text-muted-foreground" />
+-        </div>
+-      ) : items.length === 0 ? (
+-        <p className="text-sm text-muted-foreground">{t('customers.widgets.newDeals.empty')}</p>
+-      ) : (
+-        <ul className="space-y-3">
+-          {items.map((item) => {
+-            const href = resolveDetailHref(item)
+-            const createdLabel = formatDate(item.createdAt, locale)
+-            return (
+-              <li key={item.id} className="rounded-md border p-3">
+-                <div className="flex items-start justify-between gap-3">
+-                  <div>
+-                    <p className="text-sm font-medium">{item.title ?? t('customers.widgets.newDeals.untitled')}</p>
+-                    <p className="text-xs text-muted-foreground">{item.status ?? t('customers.widgets.common.unknown')}</p>
+-                  </div>
+-                  <p className="text-xs text-muted-foreground">{createdLabel || t('customers.widgets.common.unknownDate')}</p>
+-                </div>
+-                {href ? (
+-                  <div className="mt-2 text-xs">
+-                    <Link className="text-primary hover:underline" href={href}>
+-                      {t('customers.widgets.common.viewRecord')}
+-                    </Link>
+-                  </div>
+-                ) : null}
+-              </li>
+-            )
+-          })}
+-        </ul>
+-      )}
+-    </div>
++    <WidgetList>
++      {items.map((item) => (
++        <WidgetListRow
++          key={item.id}
++          href={resolveDetailHref(item)}
++          ariaLabel={t('customers.widgets.common.viewRecord')}
++          leading={<WidgetRowIcon icon="handshake" />}
++          title={item.title ?? t('customers.widgets.newDeals.untitled')}
++          badge={item.status ? <Tag variant="neutral">{item.status}</Tag> : null}
++          meta={formatRelativeTime(item.createdAt, { locale }) ?? t('customers.widgets.common.unknownDate')}
++        />
++      ))}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/customers/widgets/dashboard/next-interactions/widget.client.tsx
++++ b/packages/core/src/modules/customers/widgets/dashboard/next-interactions/widget.client.tsx
+@@ -1,12 +1,19 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { CalendarClock } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { Input } from '@open-mercato/ui/primitives/input'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowAvatar,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import {
+   DEFAULT_SETTINGS,
+@@ -165,61 +172,51 @@
+     )
+   }
+ 
++  if (error) {
++    return <WidgetError message={error} />
++  }
++
++  if (loading) {
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
++  }
++
++  if (data.length === 0) {
++    return (
++      <WidgetEmpty
++        icon={<CalendarClock className="size-5" />}
++        title={t('customers.widgets.nextInteractions.empty')}
++      />
++    )
++  }
++
+   return (
+-    <div className="space-y-4">
+-      {error ? (
+-        <p className="text-sm text-destructive">{error}</p>
+-      ) : loading ? (
+-        <div className="flex h-32 items-center justify-center">
+-          <Spinner className="h-6 w-6 text-muted-foreground" />
+-        </div>
+-      ) : data.length === 0 ? (
+-        <p className="text-sm text-muted-foreground">{t('customers.widgets.nextInteractions.empty')}</p>
+-      ) : (
+-        <ul className="space-y-3">
+-          {data.map((item) => {
+-            const href = resolveDetailHref(item)
+-            const absolute = formatAbsolute(item.nextInteractionAt, locale)
+-            const relative = formatRelativeTime(item.nextInteractionAt, { locale }) ?? ''
+-            return (
+-              <li key={item.id} className="rounded-md border p-3">
+-                <div className="flex items-start justify-between gap-3">
+-                  <div className="flex items-start gap-3">
+-                    {item.nextInteractionIcon ? (
+-                      <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded border border-border bg-card">
+-                        {renderDictionaryIcon(item.nextInteractionIcon, 'h-4 w-4')}
+-                      </span>
+-                    ) : null}
+-                    <div>
+-                      <p className="text-sm font-medium">{item.displayName ?? t('customers.widgets.common.unknown')}</p>
+-                      {item.nextInteractionName ? (
+-                        <p className="text-xs text-muted-foreground">{item.nextInteractionName}</p>
+-                      ) : null}
+-                    </div>
+-                  </div>
+-                  <div className="flex items-center gap-2 text-right text-xs text-muted-foreground">
+-                    <div>
+-                      <p>{absolute || t('customers.widgets.common.unknownDate')}</p>
+-                      {relative ? <p>{relative}</p> : null}
+-                    </div>
+-                    {item.nextInteractionColor
+-                      ? renderDictionaryColor(item.nextInteractionColor, 'h-3 w-3 rounded-full border border-border')
+-                      : null}
+-                  </div>
+-                </div>
+-                {href ? (
+-                  <div className="mt-2 text-xs">
+-                    <Link className="text-primary hover:underline" href={href}>
+-                      {t('customers.widgets.common.viewRecord')}
+-                    </Link>
+-                  </div>
+-                ) : null}
+-              </li>
+-            )
+-          })}
+-        </ul>
+-      )}
+-    </div>
++    <WidgetList>
++      {data.map((item) => {
++        const displayName = item.displayName ?? t('customers.widgets.common.unknown')
++        const relative = formatRelativeTime(item.nextInteractionAt, { locale })
++        return (
++          <WidgetListRow
++            key={item.id}
++            href={resolveDetailHref(item)}
++            ariaLabel={t('customers.widgets.common.viewRecord')}
++            leading={item.nextInteractionIcon ? (
++              <span className="inline-flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
++                {renderDictionaryIcon(item.nextInteractionIcon, 'size-4')}
++              </span>
++            ) : (
++              <WidgetRowAvatar label={displayName} />
++            )}
++            title={displayName}
++            subtitle={item.nextInteractionName}
++            badge={item.nextInteractionColor
++              ? renderDictionaryColor(item.nextInteractionColor, 'size-2 rounded-full border border-border')
++              : null}
++            trailing={relative}
++            meta={formatAbsolute(item.nextInteractionAt, locale) || t('customers.widgets.common.unknownDate')}
++          />
++        )
++      })}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/dashboards/api/layout/route.ts
++++ b/packages/core/src/modules/dashboards/api/layout/route.ts
+@@ -23,6 +23,30 @@
+ 
+ const DEFAULT_SIZE = 'md'
+ const RESOURCE_KIND = 'dashboards.layout'
++// Widgets that declare no `defaultPriority` sort behind every widget that does, so a
++// module opting into the hint never reshuffles the widgets that ignore it.
++const UNPRIORITIZED_WIDGET_RANK = Number.MAX_SAFE_INTEGER
++
++type WidgetWithMetadata = { metadata: { id: string; defaultPriority?: number } }
++
++/**
++ * Orders widgets by `metadata.defaultPriority` (lower first) while keeping the
++ * registry order for every tie, so the sort is stable regardless of the engine's
++ * own `Array.prototype.sort` guarantees. This governs where a widget is offered —
++ * the seeded default layout and the picker — never a layout the user already
++ * arranged, which is stored per user and read back verbatim.
++ */
++function sortByDefaultPriority<T extends WidgetWithMetadata>(widgets: T[]): T[] {
++  return widgets
++    .map((widget, registryIndex) => ({ widget, registryIndex }))
++    .sort((a, b) => {
++      const aRank = a.widget.metadata.defaultPriority ?? UNPRIORITIZED_WIDGET_RANK
++      const bRank = b.widget.metadata.defaultPriority ?? UNPRIORITIZED_WIDGET_RANK
++      if (aRank !== bRank) return aRank - bRank
++      return a.registryIndex - b.registryIndex
++    })
++    .map((entry) => entry.widget)
++}
+ 
+ export const metadata = {
+   GET: { requireAuth: true, requireFeatures: ['dashboards.view'] },
+@@ -104,7 +128,7 @@
+     },
+     widgets,
+   )
+-  const allowedWidgets = widgets.filter((w) => allowedIds.includes(w.metadata.id))
++  const allowedWidgets = sortByDefaultPriority(widgets.filter((w) => allowedIds.includes(w.metadata.id)))
+ 
+   // An empty widget registry means the module registry has not been populated yet
+   // (a boot race), not that this app has no widgets. Every write below is derived
+@@ -118,27 +142,7 @@
+   let items = layout ? normalizeLayoutItems(layout.layoutJson) : []
+   let hasChanged = false
+ 
+-  if (!layout) {
+-    const defaults = allowedWidgets.filter((widget) => widget.metadata.defaultEnabled)
+-    items = defaults.map((widget, index) => ({
+-      id: randomUUID(),
+-      widgetId: widget.metadata.id,
+-      order: index,
+-      priority: index,
+-      size: widget.metadata.defaultSize ?? DEFAULT_SIZE,
+-      settings: widget.metadata.defaultSettings ?? undefined,
+-    }))
+-    if (hasRegisteredWidgets) {
+-      layout = em.create(DashboardLayout, {
+-        userId: scope.userId,
+-        tenantId: scope.tenantId,
+-        organizationId: scope.organizationId,
+-        layoutJson: items,
+-      })
+-      em.persist(layout)
+-      hasChanged = true
+-    }
+-  } else if (hasRegisteredWidgets) {
++  if (layout && hasRegisteredWidgets) {
+     const existingLayout = layout
+     const filtered = items.filter((item) => allowedIds.includes(item.widgetId))
+     if (filtered.length !== items.length) {
+@@ -152,8 +156,46 @@
+     ) {
+       hasChanged = true
+     }
+-    existingLayout.layoutJson = items
+-    layout = existingLayout
++  }
++
++  // A missing layout row and a stored layout that normalizes to zero positions are the
++  // same thing on screen: an empty dashboard. Seeding only for the missing row made the
++  // stored `[]` permanent — every later GET read zero items and wrote zero items back, so
++  // the dashboard stayed blank next to a registry full of widgets and the only repair was
++  // deleting the row in SQL. Both states now seed the defaults.
++  // Deliberate trade-off: a user who removed every widget on purpose gets the defaults
++  // back on the next load. Recovering a dashboard nobody can repair from the UI outweighs
++  // re-removing widgets that can be removed again in one click.
++  // The #5041 guard above still holds — with an empty registry `allowedWidgets` is empty,
++  // so `defaults` is empty and nothing is seeded or written.
++  if (hasRegisteredWidgets && items.length === 0) {
++    const defaults = allowedWidgets.filter((widget) => widget.metadata.defaultEnabled)
++    if (defaults.length > 0) {
++      items = defaults.map((widget, index) => ({
++        id: randomUUID(),
++        widgetId: widget.metadata.id,
++        order: index,
++        priority: index,
++        size: widget.metadata.defaultSize ?? DEFAULT_SIZE,
++        settings: widget.metadata.defaultSettings ?? undefined,
++      }))
++      hasChanged = true
++    }
++  }
++
++  if (hasRegisteredWidgets) {
++    if (!layout) {
++      layout = em.create(DashboardLayout, {
++        userId: scope.userId,
++        tenantId: scope.tenantId,
++        organizationId: scope.organizationId,
++        layoutJson: items,
++      })
++      em.persist(layout)
++      hasChanged = true
++    } else {
++      layout.layoutJson = items
++    }
+   }
+ 
+   if (hasChanged) {
+--- a/packages/core/src/modules/sales/commands/documents.ts
++++ b/packages/core/src/modules/sales/commands/documents.ts
+@@ -2858,10 +2858,15 @@
+   };
+ }
+ 
++// `documentId` and `customerId` are required here, unlike on the public context type: this factory
++// is module-private, so making them mandatory forces every call site to state what it knows rather
++// than silently inheriting a default of "unknown".
+ function buildCalculationContext(params: {
+   tenantId: string;
+   organizationId: string;
+   currencyCode: string;
++  documentId: string | null;
++  customerId: string | null;
+   shippingSnapshot?: Record<string, unknown> | null;
+   paymentSnapshot?: Record<string, unknown> | null;
+   shippingMethodId?: string | null;
+@@ -2873,6 +2878,8 @@
+     tenantId: params.tenantId,
+     organizationId: params.organizationId,
+     currencyCode: params.currencyCode,
++    documentId: params.documentId,
++    customerId: params.customerId,
+     metadata: buildProviderContext({
+       shippingSnapshot: params.shippingSnapshot,
+       paymentSnapshot: params.paymentSnapshot,
+@@ -4856,6 +4863,8 @@
+       tenantId: quote.tenantId,
+       organizationId: quote.organizationId,
+       currencyCode: quote.currencyCode,
++      documentId: quote.id,
++      customerId: quote.customerEntityId ?? null,
+       shippingSnapshot: quote.shippingMethodSnapshot,
+       paymentSnapshot: quote.paymentMethodSnapshot,
+       shippingMethodId: quote.shippingMethodId ?? null,
+@@ -5274,6 +5283,8 @@
+               tenantId: quote.tenantId,
+               organizationId: quote.organizationId,
+               currencyCode: quote.currencyCode,
++              documentId: quote.id,
++              customerId: quote.customerEntityId ?? null,
+               shippingSnapshot: quote.shippingMethodSnapshot,
+               paymentSnapshot: quote.paymentMethodSnapshot,
+               shippingMethodId: quote.shippingMethodId ?? null,
+@@ -5496,6 +5507,8 @@
+               tenantId: order.tenantId,
+               organizationId: order.organizationId,
+               currencyCode: order.currencyCode,
++              documentId: order.id,
++              customerId: order.customerEntityId ?? null,
+               shippingSnapshot: order.shippingMethodSnapshot,
+               paymentSnapshot: order.paymentMethodSnapshot,
+               shippingMethodId: order.shippingMethodId ?? null,
+@@ -5885,6 +5898,8 @@
+       tenantId: order.tenantId,
+       organizationId: order.organizationId,
+       currencyCode: order.currencyCode,
++      documentId: order.id,
++      customerId: order.customerEntityId ?? null,
+       shippingSnapshot: order.shippingMethodSnapshot,
+       paymentSnapshot: order.paymentMethodSnapshot,
+       shippingMethodId: order.shippingMethodId ?? null,
+@@ -7234,6 +7249,8 @@
+       tenantId: order.tenantId,
+       organizationId: order.organizationId,
+       currencyCode: order.currencyCode,
++      documentId: order.id,
++      customerId: order.customerEntityId ?? null,
+       shippingSnapshot: order.shippingMethodSnapshot,
+       paymentSnapshot: order.paymentMethodSnapshot,
+       shippingMethodId: order.shippingMethodId ?? null,
+@@ -7416,6 +7433,8 @@
+       tenantId: order.tenantId,
+       organizationId: order.organizationId,
+       currencyCode: order.currencyCode,
++      documentId: order.id,
++      customerId: order.customerEntityId ?? null,
+       shippingSnapshot: order.shippingMethodSnapshot,
+       paymentSnapshot: order.paymentMethodSnapshot,
+       shippingMethodId: order.shippingMethodId ?? null,
+@@ -7728,6 +7747,8 @@
+       tenantId: quote.tenantId,
+       organizationId: quote.organizationId,
+       currencyCode: quote.currencyCode,
++      documentId: quote.id,
++      customerId: quote.customerEntityId ?? null,
+       shippingSnapshot: quote.shippingMethodSnapshot,
+       paymentSnapshot: quote.paymentMethodSnapshot,
+       shippingMethodId: quote.shippingMethodId ?? null,
+@@ -7882,6 +7903,8 @@
+       tenantId: quote.tenantId,
+       organizationId: quote.organizationId,
+       currencyCode: quote.currencyCode,
++      documentId: quote.id,
++      customerId: quote.customerEntityId ?? null,
+       shippingSnapshot: quote.shippingMethodSnapshot,
+       paymentSnapshot: quote.paymentMethodSnapshot,
+       shippingMethodId: quote.shippingMethodId ?? null,
+@@ -8105,6 +8128,8 @@
+       tenantId: order.tenantId,
+       organizationId: order.organizationId,
+       currencyCode: order.currencyCode,
++      documentId: order.id,
++      customerId: order.customerEntityId ?? null,
+       shippingSnapshot: order.shippingMethodSnapshot,
+       paymentSnapshot: order.paymentMethodSnapshot,
+       shippingMethodId: order.shippingMethodId ?? null,
+@@ -8328,6 +8353,8 @@
+       tenantId: order.tenantId,
+       organizationId: order.organizationId,
+       currencyCode: order.currencyCode,
++      documentId: order.id,
++      customerId: order.customerEntityId ?? null,
+       shippingSnapshot: order.shippingMethodSnapshot,
+       paymentSnapshot: order.paymentMethodSnapshot,
+       shippingMethodId: order.shippingMethodId ?? null,
+@@ -8564,6 +8591,8 @@
+       tenantId: quote.tenantId,
+       organizationId: quote.organizationId,
+       currencyCode: quote.currencyCode,
++      documentId: quote.id,
++      customerId: quote.customerEntityId ?? null,
+       shippingSnapshot: quote.shippingMethodSnapshot,
+       paymentSnapshot: quote.paymentMethodSnapshot,
+       shippingMethodId: quote.shippingMethodId ?? null,
+@@ -8785,6 +8814,8 @@
+       tenantId: quote.tenantId,
+       organizationId: quote.organizationId,
+       currencyCode: quote.currencyCode,
++      documentId: quote.id,
++      customerId: quote.customerEntityId ?? null,
+       shippingSnapshot: quote.shippingMethodSnapshot,
+       paymentSnapshot: quote.paymentMethodSnapshot,
+       shippingMethodId: quote.shippingMethodId ?? null,
+--- a/packages/core/src/modules/sales/commands/returns.ts
++++ b/packages/core/src/modules/sales/commands/returns.ts
+@@ -188,6 +188,8 @@
+     tenantId: order.tenantId,
+     organizationId: order.organizationId,
+     currencyCode: order.currencyCode,
++    documentId: order.id,
++    customerId: order.customerEntityId ?? null,
+     metadata: {
+       shippingMethod: order.shippingMethodSnapshot
+         ? cloneJson(order.shippingMethodSnapshot as Record<string, unknown>)
+--- a/packages/core/src/modules/sales/lib/types.ts
++++ b/packages/core/src/modules/sales/lib/types.ts
+@@ -134,6 +134,19 @@
+   currencyCode: string
+   metadata?: Record<string, unknown>
+   resolve?: <T>(name: string) => T
++  /**
++   * Identity of the document being calculated, so a decorator can attribute what it observes.
++   * Optional because the type is a public contract: every existing context constructor, in this
++   * repo and in third-party modules, must keep compiling. `null` means the caller knows of no
++   * document; `undefined` means the caller predates the field. Neither is an anonymous document.
++   */
++  documentId?: string | null
++  /**
++   * Customer the document is for. Optional for the same contract reason as `documentId`. `null`
++   * means unknown — a consumer resolving customer-scoped data MUST treat it as "no answer here"
++   * rather than as a sale to no one.
++   */
++  customerId?: string | null
+ }
+ 
+ export type CalculateLineOptions = {
+--- a/packages/core/src/modules/sales/widgets/dashboard/new-orders/widget.client.tsx
++++ b/packages/core/src/modules/sales/widgets/dashboard/new-orders/widget.client.tsx
+@@ -1,7 +1,7 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { ShoppingCart } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { Input } from '@open-mercato/ui/primitives/input'
+@@ -12,8 +12,15 @@
+   SelectTrigger,
+   SelectValue,
+ } from '@open-mercato/ui/primitives/select'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
+-import { Badge } from '@open-mercato/ui/primitives/badge'
++import { Tag } from '@open-mercato/ui/primitives/tag'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowIcon,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
+ import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import { DEFAULT_SETTINGS, hydrateSalesNewOrdersSettings, type DatePeriodOption, type SalesNewOrdersSettings } from './config'
+@@ -216,58 +223,38 @@
+   }
+ 
+   if (error) {
+-    return <p className="text-sm text-destructive">{error}</p>
++    return <WidgetError message={error} />
+   }
+ 
+   if (loading) {
+-    return (
+-      <div className="flex h-32 items-center justify-center">
+-        <Spinner className="h-6 w-6 text-muted-foreground" />
+-      </div>
+-    )
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
+   }
+ 
+   if (!items.length) {
+-    return <p className="text-sm text-muted-foreground">{translate('sales.widgets.newOrders.empty', 'No orders found')}</p>
++    return (
++      <WidgetEmpty
++        icon={<ShoppingCart className="size-5" />}
++        title={translate('sales.widgets.newOrders.empty', 'No orders found')}
++      />
++    )
+   }
+ 
+   return (
+-    <ul className="space-y-3">
+-      {items.map((item) => {
+-        const detailHref = resolveDetailHref(item)
+-        const amountLabel = formatAmount(item.grossAmount, item.currency, locale)
+-        const createdLabel = formatRelativeTime(item.createdAt) ?? ''
+-        return (
+-          <li key={item.id} className="rounded-md border p-3">
+-            <div className="flex items-start justify-between gap-3">
+-              <div className="space-y-1">
+-                <div className="flex items-center gap-2">
+-                  {detailHref ? (
+-                    <Link href={detailHref} className="text-sm font-semibold text-foreground hover:underline">
+-                      {item.orderNumber}
+-                    </Link>
+-                  ) : (
+-                    <span className="text-sm font-semibold text-foreground">{item.orderNumber}</span>
+-                  )}
+-                  {item.status ? (
+-                    <Badge variant="outline" className="text-xs">
+-                      {item.status}
+-                    </Badge>
+-                  ) : null}
+-                </div>
+-                <p className="text-xs text-muted-foreground">
+-                  {item.customerName ?? translate('sales.widgets.newOrders.noCustomer', 'No customer')}
+-                </p>
+-                <p className="text-xs text-muted-foreground">{createdLabel}</p>
+-              </div>
+-              <div className="text-right">
+-                <p className="text-sm font-semibold">{amountLabel}</p>
+-              </div>
+-            </div>
+-          </li>
+-        )
+-      })}
+-    </ul>
++    <WidgetList>
++      {items.map((item) => (
++        <WidgetListRow
++          key={item.id}
++          href={resolveDetailHref(item)}
++          ariaLabel={item.orderNumber}
++          leading={<WidgetRowIcon icon="shopping-cart" />}
++          title={item.orderNumber}
++          badge={item.status ? <Tag variant="neutral">{item.status}</Tag> : null}
++          subtitle={item.customerName ?? translate('sales.widgets.newOrders.noCustomer', 'No customer')}
++          trailing={formatAmount(item.grossAmount, item.currency, locale)}
++          meta={formatRelativeTime(item.createdAt, { locale }) ?? ''}
++        />
++      ))}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/sales/widgets/dashboard/new-quotes/widget.client.tsx
++++ b/packages/core/src/modules/sales/widgets/dashboard/new-quotes/widget.client.tsx
+@@ -1,7 +1,7 @@
+ "use client"
+ 
+ import * as React from 'react'
+-import Link from 'next/link'
++import { FileText } from 'lucide-react'
+ import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { Input } from '@open-mercato/ui/primitives/input'
+@@ -12,8 +12,15 @@
+   SelectTrigger,
+   SelectValue,
+ } from '@open-mercato/ui/primitives/select'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
+-import { Badge } from '@open-mercato/ui/primitives/badge'
++import { Tag } from '@open-mercato/ui/primitives/tag'
++import {
++  WidgetEmpty,
++  WidgetError,
++  WidgetList,
++  WidgetListRow,
++  WidgetRowIcon,
++  WidgetSkeleton,
++} from '@open-mercato/ui/backend/dashboard/WidgetList'
+ import { formatRelativeTime } from '@open-mercato/shared/lib/time'
+ import { useT } from '@open-mercato/shared/lib/i18n/context'
+ import { DEFAULT_SETTINGS, hydrateSalesNewQuotesSettings, type DatePeriodOption, type SalesNewQuotesSettings } from './config'
+@@ -222,58 +229,38 @@
+   }
+ 
+   if (error) {
+-    return <p className="text-sm text-destructive">{error}</p>
++    return <WidgetError message={error} />
+   }
+ 
+   if (loading) {
+-    return (
+-      <div className="flex h-32 items-center justify-center">
+-        <Spinner className="h-6 w-6 text-muted-foreground" />
+-      </div>
+-    )
++    return <WidgetSkeleton rows={hydrated.pageSize > 4 ? 4 : hydrated.pageSize} />
+   }
+ 
+   if (!items.length) {
+-    return <p className="text-sm text-muted-foreground">{translate('sales.widgets.newQuotes.empty', 'No quotes found')}</p>
++    return (
++      <WidgetEmpty
++        icon={<FileText className="size-5" />}
++        title={translate('sales.widgets.newQuotes.empty', 'No quotes found')}
++      />
++    )
+   }
+ 
+   return (
+-    <ul className="space-y-3">
+-      {items.map((item) => {
+-        const detailHref = resolveDetailHref(item)
+-        const amountLabel = formatAmount(item.grossAmount, item.currency, locale)
+-        const createdLabel = formatRelativeTime(item.createdAt) ?? ''
+-        return (
+-          <li key={item.id} className="rounded-md border p-3">
+-            <div className="flex items-start justify-between gap-3">
+-              <div className="space-y-1">
+-                <div className="flex items-center gap-2">
+-                  {detailHref ? (
+-                    <Link href={detailHref} className="text-sm font-semibold text-foreground hover:underline">
+-                      {item.quoteNumber}
+-                    </Link>
+-                  ) : (
+-                    <span className="text-sm font-semibold text-foreground">{item.quoteNumber}</span>
+-                  )}
+-                  {item.status ? (
+-                    <Badge variant="outline" className="text-xs">
+-                      {item.status}
+-                    </Badge>
+-                  ) : null}
+-                </div>
+-                <p className="text-xs text-muted-foreground">
+-                  {item.customerName ?? translate('sales.widgets.newQuotes.noCustomer', 'No customer')}
+-                </p>
+-                <p className="text-xs text-muted-foreground">{createdLabel}</p>
+-              </div>
+-              <div className="text-right">
+-                <p className="text-sm font-semibold">{amountLabel}</p>
+-              </div>
+-            </div>
+-          </li>
+-        )
+-      })}
+-    </ul>
++    <WidgetList>
++      {items.map((item) => (
++        <WidgetListRow
++          key={item.id}
++          href={resolveDetailHref(item)}
++          ariaLabel={item.quoteNumber}
++          leading={<WidgetRowIcon icon="file-text" />}
++          title={item.quoteNumber}
++          badge={item.status ? <Tag variant="neutral">{item.status}</Tag> : null}
++          subtitle={item.customerName ?? translate('sales.widgets.newQuotes.noCustomer', 'No customer')}
++          trailing={formatAmount(item.grossAmount, item.currency, locale)}
++          meta={formatRelativeTime(item.createdAt, { locale }) ?? ''}
++        />
++      ))}
++    </WidgetList>
+   )
+ }
+ 
+--- a/packages/core/src/modules/wms/api/dashboard/operational/route.ts
++++ b/packages/core/src/modules/wms/api/dashboard/operational/route.ts
+@@ -2,7 +2,8 @@
+ import { z } from 'zod'
+ import type { EntityManager } from '@mikro-orm/postgresql'
+ import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
+-import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
++import type { QueryEngine } from '@open-mercato/shared/lib/query/types'
++import { createRequestContainer, type AppContainer } from '@open-mercato/shared/lib/di/container'
+ import { getAuthFromRequest } from '@open-mercato/shared/lib/auth/server'
+ import { resolveOrganizationScopeForRequest } from '@open-mercato/core/modules/directory/utils/organizationScope'
+ import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
+@@ -22,6 +23,14 @@
+   GET: { requireAuth: true, requireFeatures: ['wms.view'] },
+ }
+ 
++function tryResolveQueryEngine(container: AppContainer): QueryEngine | null {
++  try {
++    return container.resolve('queryEngine') as QueryEngine
++  } catch {
++    return null
++  }
++}
++
+ export async function GET(request: Request) {
+   try {
+     const url = new URL(request.url)
+@@ -46,6 +55,7 @@
+       organizationId,
+       tenantId: auth.tenantId,
+       warehouseId: parsedQuery.warehouseId ?? null,
++      queryEngine: tryResolveQueryEngine(container),
+     })
+ 
+     return NextResponse.json(operationalDashboardResponseSchema.parse(payload))
+@@ -68,7 +78,7 @@
+   tag: 'WMS',
+   summary: 'Operational dashboard',
+   description:
+-    'Aggregated KPIs, expiry watch lot rows (`expiryLots`), monthly movement trends, and recent activity for the WMS operational dashboard.',
++    'Aggregated KPIs, expiry watch lot rows (`expiryLots`, each carrying the catalog `productTitle` when it can be resolved), monthly movement trends, and recent activity for the WMS operational dashboard.',
+   methods: {
+     GET: {
+       summary: 'Load operational dashboard data',
+--- a/packages/core/src/modules/wms/api/lots/route.ts
++++ b/packages/core/src/modules/wms/api/lots/route.ts
+@@ -1,6 +1,6 @@
+ import { z } from 'zod'
+ import type { EntityManager } from '@mikro-orm/postgresql'
+-import { makeCrudRoute } from '@open-mercato/shared/lib/crud/factory'
++import { makeCrudRoute, type CrudCtx } from '@open-mercato/shared/lib/crud/factory'
+ import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
+ import { parseScopedCommandInput, resolveCrudRecordId } from '@open-mercato/shared/lib/api/scoped'
+ import { escapeLikePattern } from '@open-mercato/shared/lib/db/escapeLikePattern'
+@@ -34,6 +34,90 @@
+   sortDir: z.enum(['asc', 'desc']).optional(),
+ }).passthrough()
+ 
++export type LotListQuery = z.infer<typeof listSchema>
++
++const NO_MATCH_LOT_ID = '00000000-0000-4000-8000-000000000000'
++
++function parseRequestedLotIds(rawIds: unknown): string[] | null {
++  if (typeof rawIds !== 'string' || rawIds.trim().length === 0) return null
++  const parsed = rawIds
++    .split(',')
++    .map((value) => value.trim())
++    .filter((value) => value.length > 0)
++  return parsed.length > 0 ? parsed : null
++}
++
++/**
++ * Availability narrowing is applied to every expiry-window listing so the list
++ * matches the operational dashboard KPI tiles, which count only lots that still
++ * carry available stock. Warehouse-scoped listings need it as well because the
++ * warehouse a lot sits in is only known through its balances.
++ */
++function requiresAvailableStock(query: LotListQuery): boolean {
++  return Boolean(query.warehouseId) || Boolean(query.expiryWindow)
++}
++
++export async function buildLotListFilters(
++  query: LotListQuery,
++  ctx: CrudCtx,
++): Promise<Record<string, unknown>> {
++  const filters: Record<string, unknown> = {}
++  if (query.catalogVariantId) filters.catalog_variant_id = { $eq: query.catalogVariantId }
++  if (query.status) filters.status = { $eq: query.status }
++  if (query.expiryWindow) {
++    Object.assign(filters, buildExpiryWindowDateFilter(query.expiryWindow as ExpiryWindow))
++  }
++  const requestedLotIds = parseRequestedLotIds(query.ids)
++  if (requestedLotIds) {
++    filters.id = { $in: requestedLotIds }
++  }
++  if (requiresAvailableStock(query)) {
++    const organizationId = ctx.selectedOrganizationId
++    const tenantId = ctx.auth?.tenantId
++    if (organizationId && tenantId) {
++      const em = ctx.container.resolve('em') as EntityManager
++      const balanceParams: unknown[] = [organizationId, tenantId]
++      let balanceSql = `
++        select distinct lot_id
++        from wms_inventory_balances
++        where organization_id = ?
++          and tenant_id = ?
++          and deleted_at is null
++          and lot_id is not null
++          and (
++            coalesce(quantity_on_hand, 0)
++            - coalesce(quantity_reserved, 0)
++            - coalesce(quantity_allocated, 0)
++          ) > 0`
++      if (query.warehouseId) {
++        balanceSql += ' and warehouse_id = ?'
++        balanceParams.push(query.warehouseId)
++      }
++      const rows = await em.getConnection().execute<Array<{ lot_id: string }>>(
++        balanceSql,
++        balanceParams,
++      )
++      const lotIds = rows.map((row) => row.lot_id).filter((value) => value.length > 0)
++      const scopedLotIds = requestedLotIds
++        ? lotIds.filter((value) => requestedLotIds.includes(value))
++        : lotIds
++      filters.id = {
++        $in: scopedLotIds.length > 0 ? scopedLotIds : [NO_MATCH_LOT_ID],
++      }
++    }
++  }
++  const term = query.search?.trim()
++  if (term) {
++    const like = `%${escapeLikePattern(term)}%`
++    filters.$or = [
++      { sku: { $ilike: like } },
++      { lot_number: { $ilike: like } },
++      { batch_number: { $ilike: like } },
++    ]
++  }
++  return filters
++}
++
+ const crud = makeCrudRoute({
+   metadata: routeMetadata,
+   orm: {
+@@ -71,63 +155,7 @@
+       createdAt: 'created_at',
+       updatedAt: 'updated_at',
+     },
+-    buildFilters: async (query, ctx) => {
+-      const filters: Record<string, unknown> = {}
+-      if (query.catalogVariantId) filters.catalog_variant_id = { $eq: query.catalogVariantId }
+-      if (query.status) filters.status = { $eq: query.status }
+-      if (query.expiryWindow) {
+-        Object.assign(filters, buildExpiryWindowDateFilter(query.expiryWindow as ExpiryWindow))
+-      }
+-      if (typeof query.ids === 'string' && query.ids.trim().length > 0) {
+-        filters.id = {
+-          $in: query.ids.split(',').map((value) => value.trim()).filter((value) => value.length > 0),
+-        }
+-      }
+-      const requiresAvailableStock =
+-        Boolean(query.warehouseId) || query.expiryWindow === 'pastDue'
+-      if (requiresAvailableStock) {
+-        const organizationId = ctx.selectedOrganizationId
+-        const tenantId = ctx.auth?.tenantId
+-        if (organizationId && tenantId) {
+-          const em = ctx.container.resolve('em') as EntityManager
+-          const balanceParams: unknown[] = [organizationId, tenantId]
+-          let balanceSql = `
+-            select distinct lot_id
+-            from wms_inventory_balances
+-            where organization_id = ?
+-              and tenant_id = ?
+-              and deleted_at is null
+-              and lot_id is not null
+-              and (
+-                coalesce(quantity_on_hand, 0)
+-                - coalesce(quantity_reserved, 0)
+-                - coalesce(quantity_allocated, 0)
+-              ) > 0`
+-          if (query.warehouseId) {
+-            balanceSql += ' and warehouse_id = ?'
+-            balanceParams.push(query.warehouseId)
+-          }
+-          const rows = await em.getConnection().execute<Array<{ lot_id: string }>>(
+-            balanceSql,
+-            balanceParams,
+-          )
+-          const lotIds = rows.map((row) => row.lot_id).filter((value) => value.length > 0)
+-          filters.id = {
+-            $in: lotIds.length > 0 ? lotIds : ['00000000-0000-4000-8000-000000000000'],
+-          }
+-        }
+-      }
+-      const term = query.search?.trim()
+-      if (term) {
+-        const like = `%${escapeLikePattern(term)}%`
+-        filters.$or = [
+-          { sku: { $ilike: like } },
+-          { lot_number: { $ilike: like } },
+-          { batch_number: { $ilike: like } },
+-        ]
+-      }
+-      return filters
+-    },
++    buildFilters: buildLotListFilters,
+   },
+   actions: {
+     create: {
+--- a/packages/core/src/modules/wms/data/validators.ts
++++ b/packages/core/src/modules/wms/data/validators.ts
+@@ -426,8 +426,20 @@
+   id: z.string().uuid(),
+   lotNumber: z.string(),
+   sku: z.string(),
++  // Additive, optional by contract: older producers omit it, current ones always
++  // send the catalog variant id the move-inventory prefill needs.
++  catalogVariantId: z.string().uuid().optional(),
++  // Additive, optional by contract: older producers omit it, current ones always
++  // send the catalog product title or `null` when it cannot be resolved.
++  productTitle: z.string().nullable().optional(),
+   expiresAt: z.string(),
+   availableQuantity: z.number(),
++  // Additive, optional by contract: older producers omit it, current ones always
++  // send the lot lifecycle status the change-status dialog preselects.
++  status: z.string().optional(),
++  // Additive, optional by contract: row version the optimistic-lock header is
++  // derived from; `null` when the lot carries no update timestamp.
++  updatedAt: z.string().nullable().optional(),
+   category: z.enum(['expiringSoon', 'pastDue']),
+ })
+ 
+--- a/packages/core/src/modules/wms/lib/inventoryPolicy.ts
++++ b/packages/core/src/modules/wms/lib/inventoryPolicy.ts
+@@ -87,6 +87,36 @@
+   return requestedStrategy ?? profile?.defaultStrategy ?? 'fifo'
+ }
+ 
++export type LowStockThresholdFlags = {
++  belowReorderPoint: boolean
++  belowSafetyStock: boolean
++}
++
++/**
++ * Single source of truth for the two low-stock predicates. Every condition here
++ * mirrors, term for term, the SQL in `lowStockBalanceFilter.ts` that powers the
++ * `?lowStock=belowReorder` / `?lowStock=belowSafety` inventory lists, so a KPI
++ * derived from these flags can always be reconciled with the list behind its link:
++ *
++ * - `belowReorderPoint` === `availability.available <= coalesce(p.reorder_point, 0)`
++ * - `belowSafetyStock`  === `coalesce(p.safety_stock, 0) > 0 and availability.available <= coalesce(p.safety_stock, 0)`
++ *
++ * The two are independent on purpose. A profile may configure a safety stock
++ * ABOVE its reorder point (nothing validates the ordering), and such a position
++ * is genuinely below safety stock while still sitting above the reorder point.
++ */
++export function evaluateLowStockThresholds(
++  profile: LowStockProfile,
++  availableQuantity: number,
++): LowStockThresholdFlags {
++  const reorderPoint = toNumber(profile.reorderPoint)
++  const safetyStock = toNumber(profile.safetyStock)
++  return {
++    belowReorderPoint: availableQuantity <= reorderPoint,
++    belowSafetyStock: safetyStock > 0 && availableQuantity <= safetyStock,
++  }
++}
++
+ export function evaluateLowStock(
+   profile: LowStockProfile,
+   availableQuantity: number,
+@@ -98,12 +128,14 @@
+       availableQuantity: string
+     }
+   | null {
+-  const reorderPoint = toNumber(profile.reorderPoint)
+-  if (availableQuantity > reorderPoint) return null
++  const { belowReorderPoint, belowSafetyStock } = evaluateLowStockThresholds(
++    profile,
++    availableQuantity,
++  )
++  if (!belowReorderPoint && !belowSafetyStock) return null
+ 
+-  const safetyStock = toNumber(profile.safetyStock)
+   return {
+-    state: availableQuantity <= safetyStock ? 'below_safety_stock' : 'below_reorder_point',
++    state: belowSafetyStock ? 'below_safety_stock' : 'below_reorder_point',
+     reorderPoint: profile.reorderPoint,
+     safetyStock: profile.safetyStock,
+     availableQuantity: String(availableQuantity),
+--- a/packages/core/src/modules/wms/lib/loadOperationalDashboard.ts
++++ b/packages/core/src/modules/wms/lib/loadOperationalDashboard.ts
+@@ -1,5 +1,9 @@
+ import type { EntityManager } from '@mikro-orm/postgresql'
+ import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
++import { createLogger } from '@open-mercato/shared/lib/logger'
++import type { EntityId } from '@open-mercato/shared/modules/entities'
++import type { QueryEngine } from '@open-mercato/shared/lib/query/types'
++import { E } from '#generated/entities.ids.generated'
+ import {
+   InventoryBalance,
+   InventoryLot,
+@@ -8,19 +12,30 @@
+   ProductInventoryProfile,
+   Warehouse,
+ } from '../data/entities'
+-import { evaluateLowStock } from './inventoryPolicy'
++import { evaluateLowStockThresholds } from './inventoryPolicy'
+ import { addUtcDays, EXPIRING_SOON_DAYS, startOfUtcDay } from './expiry'
+ 
++const logger = createLogger('wms')
++
+ const AGING_RESERVATION_DAYS = 7
+ const TREND_DAYS = 7
+ const MONTHLY_TREND_MONTHS = 6
+ const ACTIVITY_LIMIT = 10
+ const EXPIRY_CARD_LIMIT = 5
++const CATALOG_LOOKUP_BATCH_SIZE = 500
++const CATALOG_VARIANT_LOOKUP_FIELDS = ['id', 'product_id']
++const CATALOG_PRODUCT_LOOKUP_FIELDS = ['id', 'title']
+ 
+ export type OperationalDashboardScope = {
+   organizationId: string
+   tenantId: string
+   warehouseId?: string | null
++  /**
++   * Optional QueryEngine used to resolve catalog product titles for expiry rows.
++   * Callers that cannot resolve it (or tenants without the catalog module) keep
++   * the previous behavior and every `productTitle` stays `null`.
++   */
++  queryEngine?: QueryEngine | null
+ }
+ 
+ export type OperationalDashboardKpiId =
+@@ -63,6 +78,7 @@
+   lotNumber: string
+   sku: string
+   catalogVariantId: string
++  productTitle: string | null
+   expiresAt: string
+   availableQuantity: number
+   status: string
+@@ -185,6 +201,7 @@
+       lotNumber: lot.lotNumber,
+       sku: lot.sku,
+       catalogVariantId: lot.catalogVariantId,
++      productTitle: null,
+       expiresAt: lot.expiresAt!.toISOString(),
+       availableQuantity,
+       status: lot.status,
+@@ -209,6 +226,7 @@
+       lotNumber: lot.lotNumber,
+       sku: lot.sku,
+       catalogVariantId: lot.catalogVariantId,
++      productTitle: null,
+       expiresAt: lot.expiresAt!.toISOString(),
+       availableQuantity,
+       status: lot.status,
+@@ -219,24 +237,45 @@
+   return [...expiringRows, ...pastDueRows]
+ }
+ 
++/**
++ * Both KPIs are counted over (variant, warehouse) pairs that ACTUALLY HAVE a
++ * balance row, which is the same universe the lists behind the KPI links use:
++ * `resolveLowStockVariantIds` (lib/lowStockBalanceFilter.ts) joins real rows of
++ * `wms_inventory_balances`. Deriving the warehouse list from all balance rows
++ * instead — and then reading a missing pair as `available = 0` — would invent a
++ * low-stock position for every variant that has never been stored in that
++ * warehouse, so a second warehouse would multiply both KPIs while the lists
++ * stayed put.
++ *
++ * `lowStockCount` and `reorderCriticalCount` are two independent measurements,
++ * each equal to its own list: `belowReorder` and `belowSafety` respectively (see
++ * `evaluateLowStockThresholds`). `reorderCritical` is a subset of `lowStock`
++ * only while `safety_stock <= reorder_point`; nothing validates that ordering.
++ */
+ export function computeLowStockCounts(
+   profiles: ProductInventoryProfile[],
+   balances: InventoryBalance[],
+   warehouseId?: string | null,
+ ): { lowStockCount: number; reorderCriticalCount: number } {
+   const availableByVariantWarehouse = new Map<string, number>()
++  const warehouseIdsByVariant = new Map<string, Set<string>>()
+   for (const balance of balances) {
+     const onHand = toOperationalDashboardNumber(balance.quantityOnHand)
+     const reserved = toOperationalDashboardNumber(balance.quantityReserved)
+     const allocated = toOperationalDashboardNumber(balance.quantityAllocated)
+     const available = onHand - reserved - allocated
+-    const key = `${balance.catalogVariantId}::${balance.warehouse.id}`
++    const balanceWarehouseId = balance.warehouse.id
++    const key = `${balance.catalogVariantId}::${balanceWarehouseId}`
+     availableByVariantWarehouse.set(key, (availableByVariantWarehouse.get(key) ?? 0) + available)
++    const known = warehouseIdsByVariant.get(balance.catalogVariantId)
++    if (known) known.add(balanceWarehouseId)
++    else warehouseIdsByVariant.set(balance.catalogVariantId, new Set([balanceWarehouseId]))
+   }
+ 
+   let lowStockCount = 0
+   let reorderCriticalCount = 0
+-  const seenLowStockKeys = new Set<string>()
++  const countedBelowReorderKeys = new Set<string>()
++  const countedBelowSafetyKeys = new Set<string>()
+ 
+   for (const profile of profiles) {
+     const variantId = profile.catalogVariantId
+@@ -245,22 +284,27 @@
+     const safetyStock = toOperationalDashboardNumber(profile.safetyStock)
+     if (reorderPoint <= 0 && safetyStock <= 0) continue
+ 
++    const stockedWarehouseIds = warehouseIdsByVariant.get(variantId)
++    if (!stockedWarehouseIds) continue
+     const warehouseIds = warehouseId
+-      ? [warehouseId]
+-      : Array.from(new Set(balances.map((balance) => balance.warehouse.id)))
++      ? stockedWarehouseIds.has(warehouseId)
++        ? [warehouseId]
++        : []
++      : Array.from(stockedWarehouseIds)
+ 
+     for (const scopedWarehouseId of warehouseIds) {
+       const key = `${variantId}::${scopedWarehouseId}`
+       const available = availableByVariantWarehouse.get(key) ?? 0
+-      const evaluation = evaluateLowStock(
++      const { belowReorderPoint, belowSafetyStock } = evaluateLowStockThresholds(
+         { reorderPoint: profile.reorderPoint, safetyStock: profile.safetyStock },
+         available,
+       )
+-      if (!evaluation) continue
+-      if (seenLowStockKeys.has(key)) continue
+-      seenLowStockKeys.add(key)
+-      lowStockCount += 1
+-      if (evaluation.state === 'below_safety_stock') {
++      if (belowReorderPoint && !countedBelowReorderKeys.has(key)) {
++        countedBelowReorderKeys.add(key)
++        lowStockCount += 1
++      }
++      if (belowSafetyStock && !countedBelowSafetyKeys.has(key)) {
++        countedBelowSafetyKeys.add(key)
+         reorderCriticalCount += 1
+       }
+     }
+@@ -323,6 +367,97 @@
+   return map
+ }
+ 
++type CatalogLookupRow = {
++  id?: string | null
++}
++
++type CatalogVariantLookupRow = CatalogLookupRow & {
++  product_id?: string | null
++}
++
++type CatalogProductLookupRow = CatalogLookupRow & {
++  title?: string | null
++}
++
++function uniqueIds(values: Array<string | null | undefined>): string[] {
++  const unique = new Set<string>()
++  for (const value of values) {
++    if (typeof value === 'string' && value.length > 0) unique.add(value)
++  }
++  return Array.from(unique)
++}
++
++// Cross-module reads go through the QueryEngine so WMS never imports the
++// catalog ORM entities. Same pattern as `catalogInventoryProfileSync` and the
++// WMS list enrichers: resolve by public entity id from the `E` registry and
++// keep tenant/organization scope explicit.
++async function loadCatalogRowsByIds<Row extends CatalogLookupRow>(
++  queryEngine: QueryEngine,
++  scope: OperationalDashboardScope,
++  entityId: EntityId,
++  ids: string[],
++  fields: string[],
++): Promise<Map<string, Row>> {
++  const rowsById = new Map<string, Row>()
++  for (let offset = 0; offset < ids.length; offset += CATALOG_LOOKUP_BATCH_SIZE) {
++    const slice = ids.slice(offset, offset + CATALOG_LOOKUP_BATCH_SIZE)
++    const result = await queryEngine.query<Row>(entityId, {
++      tenantId: scope.tenantId,
++      organizationId: scope.organizationId,
++      filters: { id: { $in: slice } },
++      fields,
++      page: { page: 1, pageSize: slice.length },
++    })
++    for (const row of result.items ?? []) {
++      if (typeof row?.id === 'string' && row.id.length > 0) rowsById.set(row.id, row)
++    }
++  }
++  return rowsById
++}
++
++async function loadProductTitlesByVariantId(
++  scope: OperationalDashboardScope,
++  catalogVariantIds: string[],
++): Promise<Map<string, string>> {
++  const queryEngine = scope.queryEngine
++  if (!queryEngine) return new Map()
++  const variantIds = uniqueIds(catalogVariantIds)
++  if (variantIds.length === 0) return new Map()
++
++  try {
++    const variants = await loadCatalogRowsByIds<CatalogVariantLookupRow>(
++      queryEngine,
++      scope,
++      E.catalog.catalog_product_variant,
++      variantIds,
++      CATALOG_VARIANT_LOOKUP_FIELDS,
++    )
++    const productIds = uniqueIds(Array.from(variants.values(), (variant) => variant.product_id))
++    if (productIds.length === 0) return new Map()
++
++    const products = await loadCatalogRowsByIds<CatalogProductLookupRow>(
++      queryEngine,
++      scope,
++      E.catalog.catalog_product,
++      productIds,
++      CATALOG_PRODUCT_LOOKUP_FIELDS,
++    )
++    const titlesByVariantId = new Map<string, string>()
++    for (const [variantId, variant] of variants) {
++      const productId = typeof variant.product_id === 'string' ? variant.product_id : null
++      if (!productId) continue
++      const title = products.get(productId)?.title
++      if (typeof title === 'string' && title.trim().length > 0) {
++        titlesByVariantId.set(variantId, title)
++      }
++    }
++    return titlesByVariantId
++  } catch (err) {
++    logger.warn('operational dashboard catalog product title lookup failed', { err })
++    return new Map()
++  }
++}
++
+ async function countMovementsBetween(
+   em: EntityManager,
+   scope: OperationalDashboardScope,
+@@ -460,6 +595,47 @@
+   return em.getConnection().execute<DailyCountRow[]>(sql, params)
+ }
+ 
++/**
++ * Counts every expiring-soon lot, not just the ones that fit in the row limit.
++ * Term for term the same query as `loadPastDueLotCount` below, only the date
++ * window differs, so the two expiry KPIs sit on the same arithmetic. Scope on
++ * `b` is transitive: `b.lot_id = l.id` and the lot itself is filtered by
++ * organization and tenant, exactly as in the past-due count.
++ */
++async function loadExpiringSoonLotCount(
++  em: EntityManager,
++  scope: OperationalDashboardScope,
++  todayStart: Date,
++  expiringCutoff: Date,
++): Promise<number> {
++  const params: unknown[] = [scope.organizationId, scope.tenantId, todayStart, expiringCutoff]
++  let sql = `
++    select count(distinct l.id)::int as count
++    from wms_inventory_lots l
++    join wms_inventory_balances b
++      on b.lot_id = l.id
++     and b.deleted_at is null
++     and (
++       coalesce(b.quantity_on_hand, 0)
++       - coalesce(b.quantity_reserved, 0)
++       - coalesce(b.quantity_allocated, 0)
++     ) > 0
++    where l.organization_id = ?
++      and l.tenant_id = ?
++      and l.deleted_at is null
++      and l.status = 'available'
++      and l.expires_at is not null
++      and l.expires_at >= ?
++      and l.expires_at <= ?
++  `
++  if (scope.warehouseId) {
++    sql += ' and b.warehouse_id = ?'
++    params.push(scope.warehouseId)
++  }
++  const rows = await em.getConnection().execute<Array<{ count: string | number }>>(sql, params)
++  return toOperationalDashboardNumber(rows[0]?.count)
++}
++
+ async function loadPastDueLotCount(
+   em: EntityManager,
+   scope: OperationalDashboardScope,
+@@ -660,15 +836,12 @@
+     scope.warehouseId,
+   )
+ 
+-  const expiringSoonCount = expiringSoonLots.filter(
+-    (lot) => resolveLotAvailableQuantity(lot.id, balances, scope.warehouseId) > 0,
+-  ).length
+-
+   const agingReservationsCount = reservations.length
+ 
+   const [
+     todaysMoveCount,
+     yesterdaysMoveCount,
++    expiringSoonCount,
+     pastDueCount,
+     lowStockSparklineRows,
+     reorderCriticalSparklineRows,
+@@ -680,7 +853,16 @@
+   ] = await Promise.all([
+     countMovementsBetween(em, scope, todayStart, tomorrowStart),
+     countMovementsBetween(em, scope, yesterdayStart, todayStart),
++    loadExpiringSoonLotCount(em, scope, todayStart, expiringCutoff),
+     loadPastDueLotCount(em, scope, todayStart),
++    // These two series count DAILY NEGATIVE STOCK ADJUSTMENTS (movements of type
++    // `adjust` with a negative quantity), per day, over the trend window. They do
++    // NOT count low-stock or below-safety-stock positions, and they are NOT a
++    // trend of the `lowStock` / `reorderCritical` counts they are attached to:
++    // WMS stores neither historical balances nor historical thresholds, so no
++    // honest reconstruction of those counts over time exists in this schema.
++    // Both KPIs therefore ship `deltaSinceYesterday: null` — the delta is never
++    // derived from these rows. Do not read the sparkline as a low-stock trend.
+     loadMovementDailyCounts(em, scope, trendStart, { types: ['adjust'], quantitySign: 'negative' }),
+     loadMovementDailyCounts(em, scope, trendStart, { types: ['adjust'], quantitySign: 'negative' }),
+     loadExpiringSoonDailyCounts(em, scope, dayBuckets),
+@@ -758,12 +940,20 @@
+     }
+   })
+ 
+-  const expiryLots = buildExpiryLotRows(
++  const expiryLotRows = buildExpiryLotRows(
+     expiringSoonLots,
+     pastDueLots,
+     balances,
+     scope.warehouseId,
+   )
++  const expiryProductTitles = await loadProductTitlesByVariantId(
++    scope,
++    expiryLotRows.map((row) => row.catalogVariantId),
++  )
++  const expiryLots: OperationalDashboardExpiryLotRow[] = expiryLotRows.map((row) => ({
++    ...row,
++    productTitle: expiryProductTitles.get(row.catalogVariantId) ?? null,
++  }))
+ 
+   return {
+     lastUpdatedAt: now.toISOString(),
+--- a/packages/core/src/modules/wms/lib/__tests__/inventoryPolicy.test.ts
++++ b/packages/core/src/modules/wms/lib/__tests__/inventoryPolicy.test.ts
+@@ -2,6 +2,7 @@
+ 
+ import {
+   evaluateLowStock,
++  evaluateLowStockThresholds,
+   isLotEligible,
+   resolveReservationStrategyFromProfile,
+   sortBucketsForStrategy,
+@@ -144,4 +145,54 @@
+       availableQuantity: '4',
+     })
+   })
++
++  it('reports below_safety_stock when the safety stock sits above the reorder point', () => {
++    expect(
++      evaluateLowStock(
++        {
++          reorderPoint: '5',
++          safetyStock: '20',
++        },
++        10,
++      ),
++    ).toEqual({
++      state: 'below_safety_stock',
++      reorderPoint: '5',
++      safetyStock: '20',
++      availableQuantity: '10',
++    })
++  })
++
++  it('evaluates the two low-stock thresholds independently of each other', () => {
++    expect(evaluateLowStockThresholds({ reorderPoint: '5', safetyStock: '20' }, 10)).toEqual({
++      belowReorderPoint: false,
++      belowSafetyStock: true,
++    })
++
++    expect(evaluateLowStockThresholds({ reorderPoint: '5', safetyStock: '20' }, 21)).toEqual({
++      belowReorderPoint: false,
++      belowSafetyStock: false,
++    })
++
++    expect(evaluateLowStockThresholds({ reorderPoint: '10', safetyStock: '4' }, 6)).toEqual({
++      belowReorderPoint: true,
++      belowSafetyStock: false,
++    })
++
++    expect(evaluateLowStockThresholds({ reorderPoint: '10', safetyStock: '4' }, 4)).toEqual({
++      belowReorderPoint: true,
++      belowSafetyStock: true,
++    })
++  })
++
++  it('never reports below_safety_stock when no safety stock is configured', () => {
++    expect(evaluateLowStockThresholds({ reorderPoint: '5', safetyStock: '0' }, 0)).toEqual({
++      belowReorderPoint: true,
++      belowSafetyStock: false,
++    })
++
++    expect(evaluateLowStock({ reorderPoint: '5', safetyStock: '0' }, 0)?.state).toBe(
++      'below_reorder_point',
++    )
++  })
+ })
+--- a/packages/core/src/modules/wms/lib/__tests__/loadOperationalDashboard.test.ts
++++ b/packages/core/src/modules/wms/lib/__tests__/loadOperationalDashboard.test.ts
+@@ -6,6 +6,8 @@
+ }))
+ 
+ import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
++import type { QueryEngine, QueryOptions } from '@open-mercato/shared/lib/query/types'
++import { E } from '#generated/entities.ids.generated'
+ import {
+   InventoryBalance,
+   InventoryLot,
+@@ -50,6 +52,67 @@
+   } as InventoryBalance
+ }
+ 
++type CatalogRow = { id: string; product_id?: string | null; title?: string | null }
++
++function makeQueryEngine(rowsByEntity: Record<string, CatalogRow[]>): {
++  queryEngine: QueryEngine
++  calls: Array<{ entityId: string; opts: QueryOptions | undefined }>
++} {
++  const calls: Array<{ entityId: string; opts: QueryOptions | undefined }> = []
++  const queryEngine: QueryEngine = {
++    async query(entityId, opts) {
++      calls.push({ entityId, opts })
++      const filters = (opts?.filters ?? {}) as { id?: { $in?: string[] } }
++      const requestedIds = filters.id?.$in ?? []
++      const items = (rowsByEntity[entityId] ?? []).filter((row) => requestedIds.includes(row.id))
++      return { items, page: 1, pageSize: items.length, total: items.length } as never
++    },
++  }
++  return { queryEngine, calls }
++}
++
++type SqlCountStubs = {
++  movements?: number
++  expiringSoonLots?: number
++  pastDueLots?: number
++}
++
++/**
++ * Dispatches on the SQL text instead of on call order: the dashboard fires every
++ * count in one `Promise.all`, so a positional `mockResolvedValueOnce` chain
++ * silently re-assigns numbers to other KPIs as soon as a query is added.
++ */
++function makeCountDispatchingExecute(stubs: SqlCountStubs): jest.Mock {
++  return jest.fn(async (rawSql: unknown) => {
++    const sql = String(rawSql)
++    if (sql.includes('generate_series') || sql.includes("date_trunc('day'") || sql.includes("date_trunc('month'")) {
++      return []
++    }
++    if (sql.includes('wms_inventory_lots')) {
++      if (sql.includes('l.expires_at >= ?')) return [{ count: stubs.expiringSoonLots ?? 0 }]
++      return [{ count: stubs.pastDueLots ?? 0 }]
++    }
++    if (sql.includes('wms_inventory_movements')) {
++      return [{ count: stubs.movements ?? 0 }]
++    }
++    return []
++  })
++}
++
++function mockExpiryLotDataset(lot: InventoryLot, balance: InventoryBalance): void {
++  findWithDecryptionMock.mockImplementation(async (_em, entity, where) => {
++    if (entity === ProductInventoryProfile) return []
++    if (entity === InventoryBalance) return [balance]
++    if (entity === InventoryReservation) return [] as InventoryReservation[]
++    if (entity === InventoryMovement) return [] as InventoryMovement[]
++    if (entity === InventoryLot) {
++      const expiresAt = (where as { expiresAt?: { $lt?: Date } }).expiresAt
++      return expiresAt?.$lt ? [] : [lot]
++    }
++    return []
++  })
++}
++
+ describe('loadOperationalDashboard helpers', () => {
+   beforeEach(() => {
+     findWithDecryptionMock.mockReset()
+@@ -81,6 +144,42 @@
+     })
+   })
+ 
++  it('computeLowStockCounts ignores warehouses where the variant has no balance row', () => {
++    const stockedWarehouseId = '11111111-1111-4111-8111-111111111111'
++    const otherWarehouseId = '22222222-2222-4222-8222-222222222222'
++    const profiles = [makeProfile()]
++    const balances = [
++      makeBalance({ warehouseId: stockedWarehouseId, quantityOnHand: '1' }),
++      // A different variant is the only thing stored in the second warehouse, so
++      // the profiled variant must not be counted as a low-stock position there.
++      makeBalance({
++        warehouseId: otherWarehouseId,
++        catalogVariantId: '77777777-7777-4777-8777-777777777777',
++        quantityOnHand: '500',
++      }),
++    ]
++
++    expect(computeLowStockCounts(profiles, balances)).toEqual({
++      lowStockCount: 1,
++      reorderCriticalCount: 1,
++    })
++
++    expect(computeLowStockCounts(profiles, balances, otherWarehouseId)).toEqual({
++      lowStockCount: 0,
++      reorderCriticalCount: 0,
++    })
++  })
++
++  it('computeLowStockCounts counts a safety-stock breach above the reorder point', () => {
++    const profiles = [makeProfile({ reorderPoint: '5', safetyStock: '20' })]
++    const balances = [makeBalance({ quantityOnHand: '10' })]
++
++    expect(computeLowStockCounts(profiles, balances)).toEqual({
++      lowStockCount: 0,
++      reorderCriticalCount: 1,
++    })
++  })
++
+   it('mapDailyCountsToSparkline aligns SQL buckets with the dashboard trend window', () => {
+     const now = new Date('2026-05-28T15:00:00.000Z')
+     const dayBuckets = buildDailyBuckets(3, now)
+@@ -328,6 +427,86 @@
+     jest.useRealTimers()
+   })
+ 
++  it('expiringSoon KPI comes from an exact count, not from the capped lot row list', async () => {
++    const now = new Date('2026-05-28T12:00:00.000Z')
++    jest.useFakeTimers()
++    jest.setSystemTime(now)
++
++    const expiringLot = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-EXP',
++      sku: 'SKU-EXP',
++      catalogVariantId: '44444444-4444-4444-8444-444444444444',
++      status: 'available',
++      expiresAt: new Date('2026-05-30T00:00:00.000Z'),
++      updatedAt: now,
++    } as InventoryLot
++    mockExpiryLotDataset(expiringLot, makeBalance({ lot: expiringLot, quantityOnHand: '4' }))
++
++    const execute = makeCountDispatchingExecute({ expiringSoonLots: 137, pastDueLots: 4 })
++
++    const payload = await loadOperationalDashboard({ getConnection: () => ({ execute }) } as never, {
++      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++    })
++
++    expect(payload.kpis).toEqual(
++      expect.arrayContaining([
++        expect.objectContaining({ id: 'expiringSoon', count: 137 }),
++        expect.objectContaining({ id: 'pastDue', count: 4 }),
++      ]),
++    )
++    expect(payload.expiryLots).toHaveLength(1)
++
++    const expiringCountSql = execute.mock.calls
++      .map((call) => String(call[0]))
++      .find(
++        (sql) =>
++          sql.includes('count(distinct l.id)') &&
++          sql.includes('l.expires_at >= ?') &&
++          !sql.includes('generate_series'),
++      )
++
++    expect(expiringCountSql).toBeDefined()
++    expect(expiringCountSql).toContain('l.organization_id = ?')
++    expect(expiringCountSql).toContain('l.tenant_id = ?')
++    expect(expiringCountSql).toContain('join wms_inventory_balances b')
++    expect(expiringCountSql).toContain('quantity_allocated')
++
++    jest.useRealTimers()
++  })
++
++  it('expiringSoon count query is scoped to the selected warehouse', async () => {
++    const now = new Date('2026-05-28T12:00:00.000Z')
++    jest.useFakeTimers()
++    jest.setSystemTime(now)
++
++    const warehouseId = '11111111-1111-4111-8111-111111111111'
++    findOneWithDecryptionMock.mockResolvedValue({ id: warehouseId } as Warehouse)
++    findWithDecryptionMock.mockImplementation(async () => [])
++
++    const execute = makeCountDispatchingExecute({ expiringSoonLots: 3 })
++
++    await loadOperationalDashboard({ getConnection: () => ({ execute }) } as never, {
++      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++      warehouseId,
++    })
++
++    const expiringCountSql = execute.mock.calls
++      .map((call) => String(call[0]))
++      .find(
++        (sql) =>
++          sql.includes('count(distinct l.id)') &&
++          sql.includes('l.expires_at >= ?') &&
++          !sql.includes('generate_series'),
++      )
++
++    expect(expiringCountSql).toContain('b.warehouse_id = ?')
++
++    jest.useRealTimers()
++  })
++
+   it('startOfUtcDay normalizes timestamps to UTC midnight', () => {
+     expect(startOfUtcDay(new Date('2026-05-28T23:59:59.000Z')).toISOString()).toBe(
+       '2026-05-28T00:00:00.000Z',
+@@ -368,4 +547,152 @@
+ 
+     jest.useRealTimers()
+   })
++
++  it('loadOperationalDashboard resolves expiry lot product titles through the query engine', async () => {
++    const now = new Date('2026-05-28T12:00:00.000Z')
++    jest.useFakeTimers()
++    jest.setSystemTime(now)
++
++    const catalogVariantId = '44444444-4444-4444-8444-444444444444'
++    const catalogProductId = '55555555-5555-4555-8555-555555555555'
++    const expiringLot = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-EXP',
++      sku: 'SKU-EXP',
++      catalogVariantId,
++      status: 'available',
++      expiresAt: new Date('2026-05-30T00:00:00.000Z'),
++      updatedAt: now,
++    } as InventoryLot
++    const balance = makeBalance({ lot: expiringLot, quantityOnHand: '4' })
++    mockExpiryLotDataset(expiringLot, balance)
++
++    const { queryEngine, calls } = makeQueryEngine({
++      [E.catalog.catalog_product_variant]: [{ id: catalogVariantId, product_id: catalogProductId }],
++      [E.catalog.catalog_product]: [{ id: catalogProductId, title: 'Chlorine tablets 300 pcs' }],
++    })
++
++    const payload = await loadOperationalDashboard(
++      { getConnection: () => ({ execute: jest.fn().mockResolvedValue([]) }) } as never,
++      {
++        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++        queryEngine,
++      },
++    )
++
++    expect(payload.expiryLots).toEqual([
++      expect.objectContaining({
++        id: expiringLot.id,
++        catalogVariantId,
++        productTitle: 'Chlorine tablets 300 pcs',
++        category: 'expiringSoon',
++      }),
++    ])
++    expect(calls).toHaveLength(2)
++    expect(calls[0]?.entityId).toBe(E.catalog.catalog_product_variant)
++    expect(calls[0]?.opts).toEqual(
++      expect.objectContaining({
++        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++        filters: { id: { $in: [catalogVariantId] } },
++      }),
++    )
++    expect(calls[1]?.entityId).toBe(E.catalog.catalog_product)
++    expect(calls[1]?.opts).toEqual(
++      expect.objectContaining({
++        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++        filters: { id: { $in: [catalogProductId] } },
++      }),
++    )
++
++    jest.useRealTimers()
++  })
++
++  it('loadOperationalDashboard keeps productTitle null without a query engine', async () => {
++    const now = new Date('2026-05-28T12:00:00.000Z')
++    jest.useFakeTimers()
++    jest.setSystemTime(now)
++
++    const expiringLot = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-EXP',
++      sku: 'SKU-EXP',
++      catalogVariantId: '44444444-4444-4444-8444-444444444444',
++      status: 'available',
++      expiresAt: new Date('2026-05-30T00:00:00.000Z'),
++      updatedAt: now,
++    } as InventoryLot
++    mockExpiryLotDataset(expiringLot, makeBalance({ lot: expiringLot, quantityOnHand: '4' }))
++
++    const payload = await loadOperationalDashboard(
++      { getConnection: () => ({ execute: jest.fn().mockResolvedValue([]) }) } as never,
++      {
++        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++      },
++    )
++
++    expect(payload.expiryLots).toHaveLength(1)
++    expect(payload.expiryLots[0]?.productTitle).toBeNull()
++
++    jest.useRealTimers()
++  })
++
++  it('loadOperationalDashboard keeps productTitle null when the variant has no product', async () => {
++    const now = new Date('2026-05-28T12:00:00.000Z')
++    jest.useFakeTimers()
++    jest.setSystemTime(now)
++
++    const catalogVariantId = '44444444-4444-4444-8444-444444444444'
++    const expiringLot = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-EXP',
++      sku: 'SKU-EXP',
++      catalogVariantId,
++      status: 'available',
++      expiresAt: new Date('2026-05-30T00:00:00.000Z'),
++      updatedAt: now,
++    } as InventoryLot
++    mockExpiryLotDataset(expiringLot, makeBalance({ lot: expiringLot, quantityOnHand: '4' }))
++
++    const { queryEngine, calls } = makeQueryEngine({
++      [E.catalog.catalog_product_variant]: [{ id: catalogVariantId, product_id: null }],
++      [E.catalog.catalog_product]: [],
++    })
++
++    const payload = await loadOperationalDashboard(
++      { getConnection: () => ({ execute: jest.fn().mockResolvedValue([]) }) } as never,
++      {
++        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++        queryEngine,
++      },
++    )
++
++    expect(payload.expiryLots).toHaveLength(1)
++    expect(payload.expiryLots[0]?.productTitle).toBeNull()
++    expect(calls).toHaveLength(1)
++
++    jest.useRealTimers()
++  })
++
++  it('buildExpiryLotRows leaves productTitle null so callers can enrich it later', () => {
++    const expiringLot = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-EXP',
++      sku: 'SKU-EXP',
++      catalogVariantId: '44444444-4444-4444-8444-444444444444',
++      expiresAt: new Date('2026-06-15T00:00:00.000Z'),
++    } as InventoryLot
++    const rows = buildExpiryLotRows(
++      [expiringLot],
++      [],
++      [makeBalance({ lot: expiringLot, quantityOnHand: '4' })],
++      null,
++    )
++
++    expect(rows[0]?.productTitle).toBeNull()
++  })
+ })
+--- a/packages/core/src/modules/wms/__tests__/wmsBackendGuiApiContract.test.ts
++++ b/packages/core/src/modules/wms/__tests__/wmsBackendGuiApiContract.test.ts
+@@ -6,7 +6,10 @@
+  * Routes are GET list handlers under `/api/wms/...` (snake_case item fields).
+  */
+ 
+-import { operationalDashboardResponseSchema } from '../data/validators'
++import {
++  operationalDashboardExpiryLotSchema,
++  operationalDashboardResponseSchema,
++} from '../data/validators'
+ 
+ type JsonRecord = Record<string, unknown>
+ 
+@@ -266,8 +269,12 @@
+           id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+           lotNumber: 'LOT-1',
+           sku: 'SKU-1',
++          catalogVariantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++          productTitle: 'Chlorine tablets 300 pcs',
+           expiresAt: '2026-06-15T00:00:00.000Z',
+           availableQuantity: 3,
++          status: 'available',
++          updatedAt: '2026-05-28T11:00:00.000Z',
+           category: 'expiringSoon',
+         },
+       ],
+@@ -291,5 +298,69 @@
+     expect(payload.recentActivity[0]?.movementType).toBe('receipt')
+     expect(payload.kpis[0]?.deltaSinceYesterday).toBeNull()
+     expect(() => operationalDashboardResponseSchema.parse(payload)).not.toThrow()
++    expect(operationalDashboardResponseSchema.parse(payload).expiryLots[0]?.productTitle).toBe(
++      'Chlorine tablets 300 pcs',
++    )
++  })
++
++  it('keeps the expiry-lot fields the dashboard dialogs consume in the parsed response', () => {
++    const payload = {
++      lastUpdatedAt: '2026-05-28T12:00:00.000Z',
++      warehouseId: null,
++      kpis: [],
++      monthlyTrends: [],
++      recentActivity: [],
++      expiryLots: [
++        {
++          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++          lotNumber: 'LOT-1',
++          sku: 'SKU-1',
++          catalogVariantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++          productTitle: 'Chlorine tablets 300 pcs',
++          expiresAt: '2026-06-15T00:00:00.000Z',
++          availableQuantity: 3,
++          status: 'available',
++          updatedAt: '2026-05-28T11:00:00.000Z',
++          category: 'expiringSoon',
++        },
++      ],
++    }
++
++    const parsedRow = operationalDashboardResponseSchema.parse(payload).expiryLots[0]
++
++    expect(parsedRow?.catalogVariantId).toBe('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
++    expect(parsedRow?.status).toBe('available')
++    expect(parsedRow?.updatedAt).toBe('2026-05-28T11:00:00.000Z')
++  })
++
++  it('accepts operational dashboard expiry rows with a null updatedAt', () => {
++    const parsedRow = operationalDashboardExpiryLotSchema.parse({
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-1',
++      sku: 'SKU-1',
++      catalogVariantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++      expiresAt: '2026-06-15T00:00:00.000Z',
++      availableQuantity: 3,
++      status: 'quarantine',
++      updatedAt: null,
++      category: 'pastDue',
++    })
++
++    expect(parsedRow.updatedAt).toBeNull()
++    expect(parsedRow.status).toBe('quarantine')
++  })
++
++  it('accepts operational dashboard expiry rows with a null or omitted productTitle', () => {
++    const baseRow = {
++      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      lotNumber: 'LOT-1',
++      sku: 'SKU-1',
++      expiresAt: '2026-06-15T00:00:00.000Z',
++      availableQuantity: 3,
++      category: 'expiringSoon' as const,
++    }
++
++    expect(() => operationalDashboardExpiryLotSchema.parse({ ...baseRow, productTitle: null })).not.toThrow()
++    expect(() => operationalDashboardExpiryLotSchema.parse(baseRow)).not.toThrow()
+   })
+ })
+--- a/packages/create-app/template/src/i18n/de.json
++++ b/packages/create-app/template/src/i18n/de.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Zum Login",
+   "app.metadata.description": "KI-unterstützte, modulare ERP-Basis für Produkt- und Dienstleistungsunternehmen",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reklamationen",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Aktive Module",
+   "app.page.dbStatus.connected": "Verbunden",
+   "app.page.dbStatus.error": "Fehler: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Für dein Konto sind noch keine Widgets verfügbar.",
+   "dashboard.error.partial": "Einige Änderungen wurden nicht gespeichert",
+   "dashboard.error.reload": "Daten neu laden",
++  "dashboard.greeting": "Hallo, {name}",
+   "dashboard.loadError": "Dashboard-Daten konnten nicht geladen werden. Bitte versuche es später erneut.",
+   "dashboard.retry": "Erneut versuchen",
+   "dashboard.saveError": "Dashboard-Layout konnte nicht gespeichert werden.",
+--- a/packages/create-app/template/src/i18n/en.json
++++ b/packages/create-app/template/src/i18n/en.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Go to Login",
+   "app.metadata.description": "AI‑supportive, modular ERP foundation for product & service companies",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Claims",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Active Modules",
+   "app.page.dbStatus.connected": "Connected",
+   "app.page.dbStatus.error": "Error: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "No widgets are available for your account yet.",
+   "dashboard.error.partial": "Some changes were not saved",
+   "dashboard.error.reload": "Reload data",
++  "dashboard.greeting": "Hi, {name}",
+   "dashboard.loadError": "Unable to load dashboard data. Please try again later.",
+   "dashboard.retry": "Retry",
+   "dashboard.saveError": "Unable to save dashboard layout changes.",
+--- a/packages/create-app/template/src/i18n/es.json
++++ b/packages/create-app/template/src/i18n/es.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Ir a iniciar sesión",
+   "app.metadata.description": "Base ERP modular compatible con IA para empresas de productos y servicios",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reclamaciones",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "Módulos activos",
+   "app.page.dbStatus.connected": "Conectado",
+   "app.page.dbStatus.error": "Error: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Todavía no hay widgets disponibles para tu cuenta.",
+   "dashboard.error.partial": "Algunos cambios no se guardaron",
+   "dashboard.error.reload": "Recargar datos",
++  "dashboard.greeting": "Hola, {name}",
+   "dashboard.loadError": "No se pudieron cargar los datos del panel. Inténtalo de nuevo más tarde.",
+   "dashboard.retry": "Reintentar",
+   "dashboard.saveError": "No se pudieron guardar los cambios del panel.",
+--- a/packages/create-app/template/src/i18n/ko.json
++++ b/packages/create-app/template/src/i18n/ko.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "로그인으로 이동",
+   "app.metadata.description": "제품 및 서비스 기업을 위한 AI 지원 모듈형 ERP 기반",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "클레임",
++  "app.nav.groups.daily": "Daily work",
++  "app.nav.groups.pricingSettings": "Pricing settings",
++  "app.nav.groups.records": "Customers and stock",
+   "app.page.activeModules.title": "활성 모듈",
+   "app.page.dbStatus.connected": "연결됨",
+   "app.page.dbStatus.error": "오류: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "아직 계정에서 사용할 수 있는 위젯이 없습니다.",
+   "dashboard.error.partial": "일부 변경 사항이 저장되지 않았습니다",
+   "dashboard.error.reload": "데이터 다시 불러오기",
++  "dashboard.greeting": "{name}님, 안녕하세요",
+   "dashboard.loadError": "대시보드 데이터를 불러올 수 없습니다. 나중에 다시 시도해 주세요.",
+   "dashboard.retry": "다시 시도",
+   "dashboard.saveError": "대시보드 레이아웃 변경 사항을 저장할 수 없습니다.",
+--- a/packages/create-app/template/src/i18n/pl.json
++++ b/packages/create-app/template/src/i18n/pl.json
+@@ -22,6 +22,10 @@
+   "app.goToLogin": "Przejdź do logowania",
+   "app.metadata.description": "Modularna podstawa ERP z obsługą AI dla firm produkcyjnych i usługowych",
+   "app.metadata.title": "Open Mercato",
++  "app.nav.groups.claims": "Reklamacje",
++  "app.nav.groups.daily": "Codzienna praca",
++  "app.nav.groups.pricingSettings": "Ustawienia wyceny",
++  "app.nav.groups.records": "Klienci i towar",
+   "app.page.activeModules.title": "Aktywne moduły",
+   "app.page.dbStatus.connected": "Połączono",
+   "app.page.dbStatus.error": "Błąd: {message}",
+@@ -249,6 +253,7 @@
+   "dashboard.empty.readonly": "Brak dostępnych widżetów dla Twojego konta.",
+   "dashboard.error.partial": "Niektóre zmiany nie zostały zapisane",
+   "dashboard.error.reload": "Ponownie wczytaj dane",
++  "dashboard.greeting": "Cześć, {name}",
+   "dashboard.loadError": "Nie udało się wczytać danych pulpitu. Spróbuj ponownie później.",
+   "dashboard.retry": "Spróbuj ponownie",
+   "dashboard.saveError": "Nie udało się zapisać zmian układu pulpitu.",
+--- a/packages/create-app/template/src/modules.ts
++++ b/packages/create-app/template/src/modules.ts
+@@ -7,7 +7,7 @@
+ //   See `.ai/specs/implemented/2026-05-04-modules-ts-unified-overrides.md` and
+ //   `apps/docs/docs/framework/modules/overrides.mdx`.
+ import { parseBooleanWithDefault } from '@open-mercato/shared/lib/boolean'
+-import type { ModuleOverrides } from '@open-mercato/shared/modules/overrides'
++import type { ModuleOverrides, PageRouteOverridesMap } from '@open-mercato/shared/modules/overrides'
+ import { officialModuleEntries } from './official-modules.generated'
+ 
+ export type ModuleEntry = {
+@@ -68,6 +68,181 @@
+   },
+ }
+ 
++/**
++ * Distributor workspace information architecture — spec
++ * `.ai/specs/2026-09-18-distributor-margin-workspace.md`, Deliverable D.
++ *
++ * Page overrides are the only mechanism that re-homes a page into a different sidebar group:
++ * menu injection only appends new groups, and sidebar preferences cannot move an item across a
++ * group boundary. Because `overrides.routes.pages` is keyed globally by path
++ * (`packages/shared/src/modules/overrides.ts` → `applyPageOverridesToManifests`), this app-side
++ * block regroups pages owned by `@open-mercato/core` and `@open-mercato/pricing-engine` without
++ * editing either package.
++ *
++ * The grouping axis is HOW OFTEN a wholesale operator opens a screen, not which engine owns it.
++ * The previous revision grouped by domain and produced sidebar headings that promised work and
++ * delivered rate tables — a group called "Delivery" that held fuel prices and vehicle fuel
++ * consumption and not one delivery. A heading that lies is worse than no heading, because the
++ * operator pays the click before learning it. Three tiers replace it:
++ *   - `daily` — the sell-and-ship loop, in the order the day runs it.
++ *   - `records` — the ledgers that loop reads from: who buys, what is sold, what is in stock.
++ *   - `pricingSettings` — every rate table, in one drawer, last, named for what it holds.
++ * `claims` keeps its own heading: warranty work is real work, just not every day.
++ *
++ * `groupKey` becomes the sidebar group id and is looked up in `apps/mercato/src/i18n/*.json`;
++ * `group` is the literal a locale without that key falls back to, so it stays English.
++ *
++ * `priority` has to be restated per page: `resolveNavItemWeight` reads `priority ?? order`, and
++ * every page in these modules already declares a single per-module priority, which collapses the
++ * declared `order` values and leaves the group sorted alphabetically by title.
++ */
++type DistributorNavPage = {
++  path: string
++  priority: number
++}
++
++type DistributorNavGroup = {
++  id: string
++  defaultName: string
++  pages: readonly DistributorNavPage[]
++}
++
++export const distributorNavGroups: readonly DistributorNavGroup[] = [
++  {
++    id: 'app.nav.groups.daily',
++    defaultName: 'Daily work',
++    pages: [
++      { path: '/backend/sales/orders', priority: 10 },
++      // Directly under the order list, because it answers the question the operator opens that
++      // list to ask — what is coming — before the orders that have already arrived.
++      { path: '/backend/predicted-orders', priority: 15 },
++      { path: '/backend/sales/quotes', priority: 20 },
++      { path: '/backend/pricing/calculator', priority: 30 },
++      { path: '/backend/pricing/advisor', priority: 40 },
++      { path: '/backend/sales/documents/create', priority: 50 },
++      { path: '/backend/customer-tasks', priority: 60 },
++      { path: '/backend/calendar', priority: 70 },
++      // Pulled up out of its own single-item group: a customer thread is read as often as an
++      // order is, and it arrived while the operator was already looking at this list.
++      { path: '/backend/messages', priority: 80 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.records',
++    defaultName: 'Customers and stock',
++    pages: [
++      { path: '/backend/customers/companies', priority: 10 },
++      { path: '/backend/customers/companies/create', priority: 11 },
++      { path: '/backend/customers/people', priority: 20 },
++      { path: '/backend/customers/people/create', priority: 21 },
++      { path: '/backend/customers/deals', priority: 30 },
++      { path: '/backend/customers/deals/create', priority: 31 },
++      { path: '/backend/customers/deals/pipeline', priority: 32 },
++      { path: '/backend/customers/deals/map', priority: 33 },
++      { path: '/backend/catalog/products', priority: 40 },
++      { path: '/backend/catalog/products/create', priority: 41 },
++      { path: '/backend/catalog/categories', priority: 50 },
++      { path: '/backend/catalog/categories/create', priority: 51 },
++      { path: '/backend/wms', priority: 60 },
++      { path: '/backend/wms/inventory', priority: 61 },
++      { path: '/backend/wms/warehouses', priority: 62 },
++      { path: '/backend/wms/zones', priority: 63 },
++      { path: '/backend/wms/locations', priority: 64 },
++      { path: '/backend/wms/lots', priority: 65 },
++      { path: '/backend/wms/movements', priority: 66 },
++      { path: '/backend/wms/reservations', priority: 67 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.claims',
++    defaultName: 'Claims',
++    pages: [
++      { path: '/backend/warranty_claims', priority: 10 },
++      { path: '/backend/warranty_claims/create', priority: 11 },
++      { path: '/backend/warranty_claims/registrations', priority: 20 },
++      { path: '/backend/warranty_claims/registrations/create', priority: 21 },
++      { path: '/backend/warranty_claims/vendor-policies', priority: 30 },
++      { path: '/backend/warranty_claims/vendor-policies/create', priority: 31 },
++      { path: '/backend/warranty_claims/troubleshooting-guides', priority: 40 },
++      { path: '/backend/warranty_claims/troubleshooting-guides/create', priority: 41 },
++      { path: '/backend/warranty_claims/settings', priority: 90 },
++    ],
++  },
++  {
++    /**
++     * Every `/backend/pricing/params/*` screen, ordered by how likely the operator is to be the
++     * one who opens it: margin policy first, then the cost inputs the engine derives from, with
++     * fleet and fuel last. Nothing here is edited while quoting — it was filled in at rollout and
++     * is revisited when a rate card changes, so the whole drawer sits after the daily tiers.
++     */
++    id: 'app.nav.groups.pricingSettings',
++    defaultName: 'Pricing settings',
++    pages: [
++      { path: '/backend/pricing/params/margin-rules', priority: 10 },
++      { path: '/backend/pricing/params/guardrails', priority: 20 },
++      { path: '/backend/pricing/params/objectives', priority: 30 },
++      { path: '/backend/pricing/params/purchase-positions', priority: 40 },
++      { path: '/backend/pricing/params/labor-rates', priority: 50 },
++      { path: '/backend/pricing/params/process-steps', priority: 60 },
++      { path: '/backend/pricing/params/order-scenarios', priority: 70 },
++      { path: '/backend/pricing/params/warehouse-costs', priority: 80 },
++      { path: '/backend/pricing/params/packaging-costs', priority: 90 },
++      { path: '/backend/pricing/params/delivery-zones', priority: 100 },
++      { path: '/backend/pricing/params/vehicles', priority: 110 },
++      { path: '/backend/pricing/params/fuel-prices', priority: 120 },
++    ],
++  },
++]
++
++/**
++ * Screens that keep working at their URL and stop occupying a sidebar slot.
++ *
++ * `navHidden` is read only by `packages/ui/src/backend/utils/nav.ts` when it builds the sidebar;
++ * the manifest entry keeps its loader, so every path below still renders for anyone who has the
++ * feature and follows a link, a bookmark or a breadcrumb.
++ *
++ * Why each one:
++ *   - `shadow-observations` — a diagnostic ledger of what the pricing engine WOULD have charged
++ *     against what sales actually invoiced. It is a reporting label, not a control: no component
++ *     and no pipeline stage reads it, and no row here ever moved a sales amount. The writer is
++ *     gated behind `OM_PRICING_SHADOW_OBSERVE`, which is unset, so the table holds zero rows and
++ *     will hold zero rows until someone turns observation on deliberately.
++ *   - `playground` — a what-if bench for the engine's parameters. The operator quotes on the
++ *     calculator; the playground answers a question only whoever tunes the parameters asks.
++ *   - `coverage` — the register of which pricing components rest on measured data and which rest
++ *     on defaults. Honest and worth having, but it answers "can I trust this number?" in a
++ *     different place from where the number is shown, and mid-phone-call nobody navigates away to
++ *     ask. The advisor and calculator already carry that answer inline on the figure itself
++ *     (`ConfidenceBadge`), which is where the question is actually asked.
++ *   - `docs` — the OpenAPI browser. An integrator's screen that reached the operator's sidebar.
++ *
++ * This is a path-keyed override with no role dimension, so the four disappear from every role's
++ * sidebar, administrators included. That is the intended trade for this app: all four remain one
++ * typed URL away, and none of them is a screen a sidebar is the right entry point for.
++ */
++export const distributorNavHiddenPages: readonly string[] = [
++  '/backend/pricing/shadow-observations',
++  '/backend/pricing/playground',
++  '/backend/pricing/coverage',
++  '/backend/docs',
++]
++
++export const distributorNavGroupOrder: readonly string[] = distributorNavGroups.map((group) => group.id)
++
++export const distributorNavPageOverrides: PageRouteOverridesMap = {
++  ...Object.fromEntries(
++    distributorNavGroups.flatMap((group) =>
++      group.pages.map((page) => [
++        page.path,
++        { metadata: { group: group.defaultName, groupKey: group.id, priority: page.priority } },
++      ]),
++    ),
++  ),
++  ...Object.fromEntries(
++    distributorNavHiddenPages.map((path) => [path, { metadata: { navHidden: true } }]),
++  ),
++}
++
+ export const enabledModules: ModuleEntry[] = [
+   { id: 'dashboards', from: '@open-mercato/core' },
+   { id: 'auth', from: '@open-mercato/core' },
+@@ -81,6 +256,12 @@
+   { id: 'attachments', from: '@open-mercato/core' },
+   { id: 'catalog', from: '@open-mercato/core' },
+   { id: 'sales', from: '@open-mercato/core' },
++  // MUST stay after `sales`: DI registrars run in this order, and pricing_engine wraps the
++  // `salesCalculationService` binding that `sales` registers. The wrapper only RECORDS what the
++  // pricing engine would have charged, returning the base service's own result untouched — no sales
++  // amount is ever altered, and observing is off unless OM_PRICING_SHADOW_OBSERVE says otherwise.
++  // Listed first, the binding would go unwrapped and the observation would be silently dead.
++  { id: 'pricing_engine', from: '@open-mercato/pricing-engine' },
+   { id: 'warranty_claims', from: '@open-mercato/core' },
+   { id: 'wms', from: '@open-mercato/core' },
+   { id: 'api_keys', from: '@open-mercato/core' },
+@@ -135,6 +316,25 @@
+   { id: 'webhooks', from: '@open-mercato/webhooks' },
+   { id: 'customer_accounts', from: '@open-mercato/core' },
+   { id: 'portal', from: '@open-mercato/core' },
++  // Wholesale-distributor workspace: the `distributor` role plus the manually-run HoReCa
++  // seeders. Listed after catalog / customers / auth / customer_accounts / pricing_engine
++  // because its seeders write into those modules' entities and its role grants reference
++  // their ACL features.
++  {
++    id: 'distributor_workspace',
++    from: '@app',
++    overrides: {
++      routes: { pages: distributorNavPageOverrides },
++      nav: {
++        // Sidebar group ordering is a single app-wide decision and the last module entry to declare
++        // it wins. The `example` entry above declares its own probe order under OM_INTEGRATION_TEST
++        // and is evaluated first, so that id is restated here rather than silently dropped.
++        groupOrder: parseBooleanWithDefault(process.env.OM_INTEGRATION_TEST, false)
++          ? ['example.nav.group', ...distributorNavGroupOrder]
++          : [...distributorNavGroupOrder],
++      },
++    },
++  },
+   { id: 'ratelimit_probe', from: '@app' },
+ ]
+ 
+--- a/packages/shared/src/modules/dashboard/widgets.ts
++++ b/packages/shared/src/modules/dashboard/widgets.ts
+@@ -14,6 +14,14 @@
+   defaultSize?: DashboardWidgetSize
+   defaultSettings?: unknown
+   defaultEnabled?: boolean
++  /**
++   * Placement hint for the seeded default layout and the widget picker: a lower
++   * number is offered higher up. Widgets that omit it keep the registry order and
++   * sit below every widget that declares one, so adding the field to one module
++   * never reshuffles the others. It has no effect on a layout the user already
++   * arranged — that order is stored per user.
++   */
++  defaultPriority?: number
+   tags?: string[]
+   category?: string
+   icon?: string
+--- a/packages/ui/src/backend/dashboard/DashboardScreen.tsx
++++ b/packages/ui/src/backend/dashboard/DashboardScreen.tsx
+@@ -3,17 +3,20 @@
+ import * as React from 'react'
+ import { Button } from '@open-mercato/ui/primitives/button'
+ import { IconButton } from '@open-mercato/ui/primitives/icon-button'
+-import { Spinner } from '@open-mercato/ui/primitives/spinner'
+ import { Alert, AlertDescription, AlertTitle } from '@open-mercato/ui/primitives/alert'
+ import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+ import { getDashboardWidgets, loadDashboardWidgetModule } from './widgetRegistry'
+ import type { DashboardWidgetModule } from '@open-mercato/shared/modules/dashboard/widgets'
+ import { cn } from '@open-mercato/shared/lib/utils'
+ import { GripVertical, Plus, RefreshCw, Settings2, Trash2, X, Loader2 } from 'lucide-react'
+-import { useT } from '@open-mercato/shared/lib/i18n/context'
++import { useT, useLocale } from '@open-mercato/shared/lib/i18n/context'
+ import { useOrganizationScopeVersion } from '@open-mercato/shared/lib/frontend/useOrganizationScope'
++import { Skeleton } from '@open-mercato/ui/primitives/skeleton'
+ import { InjectionSpot } from '../injection/InjectionSpot'
+ import { WidgetDataBatchProvider } from './widgetData'
++import { WidgetIconChip } from './widgetIcon'
++import { WidgetSkeleton } from './WidgetList'
++import { useDashboardColumns } from './useDashboardColumns'
+ import { createLogger } from '@open-mercato/shared/lib/logger'
+ 
+ const logger = createLogger('ui').child({ component: 'DashboardScreen' })
+@@ -62,18 +65,6 @@
+ 
+ type WidgetModule = DashboardWidgetModule<any>
+ 
+-function sizeClass(size: DashboardWidgetSize | undefined) {
+-  switch (size) {
+-    case 'lg':
+-      return 'md:col-span-2'
+-    case 'md':
+-      return 'md:col-span-1'
+-    case 'sm':
+-    default:
+-      return 'md:col-span-1'
+-  }
+-}
+-
+ function sortLayout(items: LayoutItem[]): LayoutItem[] {
+   return [...items]
+     .sort((a, b) => {
+@@ -86,6 +77,12 @@
+ 
+ const DEFAULT_SIZE: DashboardWidgetSize = 'md'
+ 
++// Widgets are distributed round-robin into `useDashboardColumns()` columns
++// instead of a CSS grid: a grid reserves the tallest card's height for the
++// whole row, which leaves holes under short cards. Round-robin keeps reading
++// order row-major (the first widgets stay across the top) while each column
++// packs tight.
++
+ function generateId(): string {
+   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+     return crypto.randomUUID()
+@@ -96,6 +93,8 @@
+ 
+ export function DashboardScreen() {
+   const t = useT()
++  const locale = useLocale()
++  const columnCount = useDashboardColumns()
+   const tRef = React.useRef(t)
+   tRef.current = t
+   const organizationScopeVersion = useOrganizationScopeVersion()
+@@ -368,10 +367,44 @@
+   const dashboardBeforeSpotId = 'dashboard:before'
+   const dashboardAfterSpotId = 'dashboard:after'
+ 
++  const columns = React.useMemo(() => {
++    const buckets: LayoutItem[][] = Array.from({ length: columnCount }, () => [])
++    layout.forEach((item, index) => {
++      buckets[index % columnCount].push(item)
++    })
++    return buckets
++  }, [columnCount, layout])
++
++  const userDisplayName = (context?.userLabel || context?.userName || '').trim()
++  const greeting = userDisplayName
++    ? t('dashboard.greeting', 'Hi, {name}', { name: userDisplayName })
++    : t('dashboard.title')
++  const todayLabel = new Date().toLocaleDateString(locale, {
++    weekday: 'long',
++    day: 'numeric',
++    month: 'long',
++  })
++
+   if (loading) {
+     return (
+-      <div className="flex min-h-[320px] items-center justify-center">
+-        <Spinner size="lg" />
++      <div className="space-y-6">
++        <div className="space-y-2">
++          <Skeleton className="h-8 w-48" />
++          <Skeleton className="h-4 w-80" />
++        </div>
++        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
++          {Array.from({ length: 6 }).map((_, index) => (
++            <div key={index} className="rounded-xl border bg-card p-4 shadow-sm">
++              <div className="flex items-center gap-3">
++                <Skeleton shape="circle" className="size-8" />
++                <Skeleton className="h-4 w-32" />
++              </div>
++              <div className="mt-4">
++                <WidgetSkeleton rows={3} />
++              </div>
++            </div>
++          ))}
++        </div>
+       </div>
+     )
+   }
+@@ -403,9 +436,9 @@
+   return (
+     <div className="space-y-6">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+-        <div>
+-          <h1 className="text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
+-          <p className="text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
++        <div className="space-y-1">
++          <h1 className="text-2xl font-bold tracking-tight">{greeting}</h1>
++          <p className="text-sm text-muted-foreground" suppressHydrationWarning>{todayLabel}</p>
+         </div>
+         <div className="flex items-center gap-2">
+           {saving && (
+@@ -453,12 +486,7 @@
+       )}
+ 
+       <WidgetDataBatchProvider>
+-      <div className={cn(
+-        'grid gap-3 sm:gap-4 md:gap-6',
+-        'grid-cols-1',
+-        'md:grid-cols-2',
+-        'xl:grid-cols-3'
+-      )}
++      <div className="flex items-start gap-3 sm:gap-4 md:gap-6"
+       onDragOver={(event) => {
+         if (!editing || !canConfigure) return
+         event.preventDefault()
+@@ -485,7 +513,9 @@
+         })
+         draggingIdRef.current = null
+       }}>
+-        {layout.map((item) => {
++        {columns.map((columnItems, columnIndex) => (
++          <div key={columnIndex} className="flex min-w-0 flex-1 flex-col gap-3 sm:gap-4 md:gap-6">
++        {columnItems.map((item) => {
+           const meta = metaById.get(item.widgetId)
+           if (!meta) return null
+           const title = resolveWidgetTitle(meta)
+@@ -512,10 +542,11 @@
+               }}
+               onDragEnter={() => {}}
+               onDragLeave={() => {}}
+-              sizeClass={sizeClass(item.size)}
+             />
+           )
+         })}
++          </div>
++        ))}
+       </div>
+       </WidgetDataBatchProvider>
+ 
+@@ -551,7 +582,6 @@
+   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
+   onDragEnter: () => void
+   onDragLeave: () => void
+-  sizeClass: string
+ }
+ 
+ function DashboardWidgetCard({
+@@ -570,7 +600,6 @@
+   onDrop,
+   onDragEnter,
+   onDragLeave,
+-  sizeClass,
+ }: DashboardWidgetCardProps) {
+   const t = useT()
+   const [module, setModule] = React.useState<WidgetModule | null>(null)
+@@ -660,15 +689,9 @@
+ 
+   const WidgetComponent = module?.Widget
+   const mode = activeSettings ? 'settings' : 'view'
+-
+   return (
+     <div
+-      className={cn(
+-        'group relative flex h-full flex-col rounded-lg border bg-background shadow-sm transition',
+-        isDragOver ? 'border-primary ring-2 ring-primary/20' : 'hover:border-primary/40',
+-        editing ? 'cursor-grab' : 'cursor-default',
+-        sizeClass
+-      )}
++      className="min-w-0"
+       draggable={editing}
+       onDragStart={(event) => {
+         if (!editing) return
+@@ -706,15 +729,26 @@
+         onDragLeave()
+       }}
+     >
+-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+-        <div className="flex items-center gap-2">
+-          {editing && <GripVertical className="h-4 w-4 text-muted-foreground" />}
+-          <div>
+-            <div className="text-sm font-medium leading-none">{title}</div>
+-            {description ? <div className="mt-1 text-xs text-muted-foreground">{description}</div> : null}
++      <div
++        className={cn(
++          'group relative flex flex-col rounded-xl border border-border bg-card shadow-sm transition-shadow',
++          isDragOver ? 'border-primary ring-2 ring-primary/20' : 'hover:shadow-md',
++          editing ? 'cursor-grab' : 'cursor-default',
++        )}
++      >
++      <div className="flex items-start justify-between gap-2 px-4 pb-3 pt-4">
++        <div className="flex min-w-0 items-center gap-3">
++          {editing && <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />}
++          <WidgetIconChip icon={meta.icon} />
++          <div className="min-w-0">
++            <div className="line-clamp-2 text-sm font-semibold leading-tight" title={description ?? undefined}>{title}</div>
++            {editing && description ? <div className="mt-1 text-xs text-muted-foreground">{description}</div> : null}
+           </div>
+         </div>
+-        <div className="flex items-center gap-1">
++        <div className={cn(
++          'flex shrink-0 items-center gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100',
++          editing ? 'opacity-100' : 'opacity-0',
++        )}>
+           {!editing && meta.supportsRefresh && (
+             <IconButton
+               variant="ghost"
+@@ -748,12 +782,8 @@
+           )}
+         </div>
+       </div>
+-      <div className="flex-1 p-4">
+-        {loading && (
+-          <div className="flex h-full min-h-[120px] items-center justify-center">
+-            <Spinner />
+-          </div>
+-        )}
++      <div className="flex-1 px-4 pb-4">
++        {loading && <WidgetSkeleton rows={3} />}
+         {loadError && !loading && (
+           <div className="text-sm text-muted-foreground">{loadError}</div>
+         )}
+@@ -769,6 +799,7 @@
+           />
+         )}
+       </div>
++      </div>
+     </div>
+   )
+ }
 --- a/yarn.lock
 +++ b/yarn.lock
 @@ -8106,6 +8106,7 @@
@@ -97,98 +3310,1012 @@
  "@open-mercato/queue@workspace:*, @open-mercato/queue@workspace:packages/queue":
    version: 0.0.0-use.local
    resolution: "@open-mercato/queue@workspace:packages/queue"
---- a/apps/mercato/package.json
-+++ b/apps/mercato/package.json
-@@ -46,6 +46,7 @@
-     "@open-mercato/events": "workspace:*",
-     "@open-mercato/gateway-stripe": "workspace:*",
-     "@open-mercato/onboarding": "workspace:*",
-+    "@open-mercato/pricing-engine": "workspace:*",
-     "@open-mercato/queue": "workspace:*",
-     "@open-mercato/scheduler": "workspace:*",
-     "@open-mercato/search": "workspace:*",
---- a/apps/mercato/jest.config.cjs
-+++ b/apps/mercato/jest.config.cjs
-@@ -27,6 +27,7 @@
-     '^@open-mercato/events/(.*)$': '<rootDir>/../../packages/events/src/$1',
-     '^@open-mercato/cli/(.*)$': '<rootDir>/../../packages/cli/src/$1',
-     '^@open-mercato/content/(.*)$': '<rootDir>/../../packages/content/src/$1',
-+    '^@open-mercato/pricing-engine/(.*)$': '<rootDir>/../../packages/pricing-engine/src/$1',
-   },
-   transform: {
-     '^.+\\.(t|j)sx?$': [
---- a/apps/mercato/src/modules.ts
-+++ b/apps/mercato/src/modules.ts
-@@ -81,6 +81,9 @@
-   { id: 'attachments', from: '@open-mercato/core' },
-   { id: 'catalog', from: '@open-mercato/core' },
-   { id: 'sales', from: '@open-mercato/core' },
-+  // MUST stay after `sales`: DI registrars run in this order, and pricing_engine decorates
-+  // the `salesCalculationService` binding that `sales` registers.
-+  { id: 'pricing_engine', from: '@open-mercato/pricing-engine' },
-   { id: 'warranty_claims', from: '@open-mercato/core' },
-   { id: 'wms', from: '@open-mercato/core' },
-   { id: 'api_keys', from: '@open-mercato/core' },
-@@ -164,6 +167,11 @@
-       },
-     },
-   },
-+  // Wholesale-distributor workspace: the `distributor` role plus the manually-run HoReCa
-+  // seeders. Listed after catalog / customers / auth / customer_accounts / pricing_engine
-+  // because its seeders write into those modules' entities and its role grants reference
-+  // their ACL features.
-+  { id: 'distributor_workspace', from: '@app' },
-   { id: 'ratelimit_probe', from: '@app' },
- ]
- 
---- a/packages/core/src/modules/catalog/di.ts
-+++ b/packages/core/src/modules/catalog/di.ts
-@@ -2,7 +2,7 @@
- import type { EventBus } from '@open-mercato/events'
- import type { AppContainer } from '@open-mercato/shared/lib/di/container'
- import { DefaultCatalogPricingService } from './services/catalogPricingService'
--import { CatalogProduct, CatalogProductPrice } from './data/entities'
-+import { CatalogProduct, CatalogProductPrice, CatalogProductUnitConversion } from './data/entities'
- 
- type AppCradle = AppContainer['cradle'] & {
-   eventBus?: EventBus | null
-@@ -17,5 +17,9 @@
-       .proxy(),
-     CatalogProduct: asValue(CatalogProduct),
-     CatalogProductPrice: asValue(CatalogProductPrice),
-+    // Exposed for optional peers that need packaging ladders without an ORM relation into catalog
-+    // (pricing_engine's `packaging_cost` resolves this class by name, the same seam it uses for
-+    // CatalogProduct). Additive: no existing consumer changes.
-+    CatalogProductUnitConversion: asValue(CatalogProductUnitConversion),
-   })
- }
---- a/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
-+++ b/packages/cli/src/lib/generators/__tests__/module-facts.bc-guard.test.ts
-@@ -158,7 +158,26 @@
-     // provenance entries and override targets to every render. The
-     // `warranty_claims` module (see above) lands alongside it, so the cap
-     // absorbs both additions.
--    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_000_000)
-+    //
-+    // JSON cap raised a sixth time by the `pricing_engine` module
-+    // (2026-09-18-pricing-engine-module): twenty entities, eight ACL features,
-+    // twenty DI tokens, four events, four API routes and two backend pages cost
-+    // 68.5KB of facts and provenance references (3,978,803 -> 4,047,325 bytes),
-+    // measured by extracting with and without the package present. That is linear
-+    // growth proportional to the module's surface, not the multiplicative blow-up
-+    // this detector exists to catch. Markdown grew 24.9KB and directory markdown
-+    // 26.5KB, both well inside their existing caps, so only this cap moves.
-+    //
-+    // JSON cap raised a seventh time by the pricing parameter screens and the
-+    // distributor ordering portal: `pricing_engine` went from four API routes and
-+    // two backend pages to fifteen routes and thirty-five pages, and
-+    // `distributor_workspace` added three portal routes and one portal page.
-+    // Facts and provenance grew 54.4KB for that (4,047,325 -> 4,103,039 bytes) —
-+    // roughly 1.2KB a route/page, the same per-surface cost the sixth raise
-+    // measured, so this is the linear growth the cap is meant to allow rather
-+    // than the multiplicative blow-up it exists to catch. Markdown and directory
-+    // markdown both stayed inside their caps, so again only this cap moves.
-+    expect(Buffer.byteLength(completeJson)).toBeLessThan(4_160_000)
-     expect(Buffer.byteLength(completeJson) - Buffer.byteLength(legacyJson)).toBeLessThan(1_800_000)
-     // Markdown cap raised with the source-link contract: entities, events, ACL
-     // features, DI tokens, search entities, notifications, UMES hosts and UMES
+--- /dev/null
++++ b/packages/ui/src/backend/dashboard/useDashboardColumns.ts
+@@ -0,0 +1,43 @@
++'use client'
++
++import { useSyncExternalStore } from 'react'
++
++const WIDE_QUERY = '(min-width: 1280px)'
++const MEDIUM_QUERY = '(min-width: 768px)'
++
++function supportsMatchMedia(): boolean {
++  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
++}
++
++function subscribe(callback: () => void) {
++  if (!supportsMatchMedia()) return () => {}
++  const wide = window.matchMedia(WIDE_QUERY)
++  const medium = window.matchMedia(MEDIUM_QUERY)
++  wide.addEventListener('change', callback)
++  medium.addEventListener('change', callback)
++  return () => {
++    wide.removeEventListener('change', callback)
++    medium.removeEventListener('change', callback)
++  }
++}
++
++function getSnapshot(): number {
++  if (!supportsMatchMedia()) return 3
++  if (window.matchMedia(WIDE_QUERY).matches) return 3
++  if (window.matchMedia(MEDIUM_QUERY).matches) return 2
++  return 1
++}
++
++function getServerSnapshot(): number {
++  return 3
++}
++
++/**
++ * Number of dashboard widget columns for the current viewport, matching the
++ * Tailwind breakpoints the rest of the backend uses. Widgets are distributed
++ * across that many columns instead of a CSS grid, because a grid reserves the
++ * tallest card's height for a whole row and leaves holes under short cards.
++ */
++export function useDashboardColumns(): number {
++  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
++}
+--- /dev/null
++++ b/packages/ui/src/backend/dashboard/widgetIcon.tsx
+@@ -0,0 +1,30 @@
++"use client"
++
++import * as React from 'react'
++import { LayoutDashboard, type LucideIcon } from 'lucide-react'
++import { cn } from '@open-mercato/shared/lib/utils'
++import { resolveRegisteredLucideIcon } from '../icons/lucideRegistry'
++
++export function resolveWidgetIcon(name: string | null | undefined): LucideIcon {
++  return resolveRegisteredLucideIcon(name ?? undefined) ?? LayoutDashboard
++}
++
++export type WidgetIconChipProps = {
++  icon: string | null | undefined
++  className?: string
++}
++
++export function WidgetIconChip({ icon, className }: WidgetIconChipProps) {
++  const Icon = resolveWidgetIcon(icon)
++  return (
++    <span
++      aria-hidden="true"
++      className={cn(
++        'inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary',
++        className,
++      )}
++    >
++      <Icon className="size-4" />
++    </span>
++  )
++}
+--- /dev/null
++++ b/packages/ui/src/backend/dashboard/WidgetList.tsx
+@@ -0,0 +1,187 @@
++"use client"
++
++import * as React from 'react'
++import Link from 'next/link'
++import { ChevronRight } from 'lucide-react'
++import { cn } from '@open-mercato/shared/lib/utils'
++import { Avatar } from '@open-mercato/ui/primitives/avatar'
++import { EmptyState } from '@open-mercato/ui/primitives/empty-state'
++import { Skeleton } from '@open-mercato/ui/primitives/skeleton'
++import { resolveWidgetIcon } from './widgetIcon'
++
++export type WidgetListProps = {
++  children: React.ReactNode
++  className?: string
++}
++
++export function WidgetList({ children, className }: WidgetListProps) {
++  return (
++    <ul className={cn('-mx-2 divide-y divide-border/60', className)}>
++      {children}
++    </ul>
++  )
++}
++
++export type WidgetListRowProps = {
++  href?: string | null
++  title: React.ReactNode
++  subtitle?: React.ReactNode
++  /** Leading visual — use `<WidgetRowAvatar>` or an icon chip. */
++  leading?: React.ReactNode
++  /** Chip rendered next to the title (status, kind). */
++  badge?: React.ReactNode
++  /** Emphasized right-hand value (amount, count). */
++  trailing?: React.ReactNode
++  /** Secondary right-hand line (timestamp, deadline). */
++  meta?: React.ReactNode
++  /** Extra row beneath the title (secondary links, notes). */
++  footer?: React.ReactNode
++  ariaLabel?: string
++}
++
++export function WidgetListRow({
++  href,
++  title,
++  subtitle,
++  leading,
++  badge,
++  trailing,
++  meta,
++  footer,
++  ariaLabel,
++}: WidgetListRowProps) {
++  const body = (
++    <>
++      {leading ? <span className="mt-0.5 shrink-0">{leading}</span> : null}
++      <span className="flex min-w-0 flex-1 flex-col gap-1">
++        <span className="flex min-w-0 items-center gap-2">
++          <span className="truncate text-sm font-medium text-foreground">{title}</span>
++          {badge}
++        </span>
++        {subtitle ? (
++          <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
++        ) : null}
++      </span>
++      {trailing || meta ? (
++        <span className="flex shrink-0 flex-col items-end gap-1 text-right">
++          {trailing ? (
++            <span className="text-sm font-semibold tabular-nums text-foreground">{trailing}</span>
++          ) : null}
++          {meta ? <span className="text-xs text-muted-foreground">{meta}</span> : null}
++        </span>
++      ) : null}
++      {href ? (
++        <ChevronRight
++          aria-hidden="true"
++          className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100"
++        />
++      ) : null}
++    </>
++  )
++
++  const rowClass = 'flex items-start gap-3 rounded-md px-2 py-3 transition-colors'
++
++  return (
++    <li className="group/row">
++      {href ? (
++        <Link href={href} aria-label={ariaLabel} className={cn(rowClass, 'hover:bg-muted/50')}>
++          {body}
++        </Link>
++      ) : (
++        <div className={rowClass}>{body}</div>
++      )}
++      {footer ? <div className="px-2 pb-3 text-xs">{footer}</div> : null}
++    </li>
++  )
++}
++
++export type WidgetRowAvatarProps = {
++  label: string
++  className?: string
++}
++
++/** Initials bubble used as the leading visual for person/company rows. */
++export function WidgetRowAvatar({ label, className }: WidgetRowAvatarProps) {
++  return <Avatar label={label} size="sm" className={className} />
++}
++
++export type WidgetRowIconProps = {
++  icon: string | null | undefined
++  className?: string
++}
++
++/** Muted square icon used as the leading visual for non-person rows. */
++export function WidgetRowIcon({ icon, className }: WidgetRowIconProps) {
++  const Icon = resolveWidgetIcon(icon)
++  return (
++    <span
++      aria-hidden="true"
++      className={cn(
++        'inline-flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground',
++        className,
++      )}
++    >
++      <Icon className="size-4" />
++    </span>
++  )
++}
++
++export type WidgetEmptyProps = {
++  title: string
++  description?: string
++  icon?: React.ReactNode
++}
++
++export function WidgetEmpty({ title, description, icon }: WidgetEmptyProps) {
++  return <EmptyState size="sm" variant="subtle" title={title} description={description} icon={icon} />
++}
++
++export type WidgetSkeletonProps = {
++  rows?: number
++}
++
++export function WidgetSkeleton({ rows = 3 }: WidgetSkeletonProps) {
++  return (
++    <div className="-mx-2 divide-y divide-border/60">
++      {Array.from({ length: Math.max(1, rows) }).map((_, index) => (
++        <div key={index} className="flex items-center gap-3 px-2 py-3">
++          <Skeleton shape="circle" className="size-7" />
++          <div className="flex-1 space-y-2">
++            <Skeleton className="h-4 w-2/5" />
++            <Skeleton className="h-3 w-1/4" />
++          </div>
++          <Skeleton className="h-3 w-16" />
++        </div>
++      ))}
++    </div>
++  )
++}
++
++export type WidgetErrorProps = {
++  message: string
++}
++
++export function WidgetError({ message }: WidgetErrorProps) {
++  return (
++    <div className="rounded-md border border-status-error-border bg-status-error-bg px-3 py-3 text-sm text-status-error-text">
++      {message}
++    </div>
++  )
++}
++
++export type WidgetFooterLinkProps = {
++  href: string
++  children: React.ReactNode
++}
++
++export function WidgetFooterLink({ href, children }: WidgetFooterLinkProps) {
++  return (
++    <Link
++      href={href}
++      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
++    >
++      {children}
++      <ChevronRight aria-hidden="true" className="size-3" />
++    </Link>
++  )
++}
+--- /dev/null
++++ b/packages/core/src/modules/dashboards/api/layout/__tests__/route.default-seed-order.test.ts
+@@ -0,0 +1,306 @@
++/**
++ * The dashboard GET seeds a default layout for anyone who has none. Two defects are
++ * covered here:
++ *
++ *  1. A layout row storing zero positions used to be indistinguishable from "the user
++ *     wants nothing", so the defaults were never seeded again and the dashboard stayed
++ *     blank next to a registry full of widgets — repairable only by deleting the row.
++ *  2. The seed followed registry order, so widgets contributed by an app module always
++ *     landed below the core widgets. `metadata.defaultPriority` now orders the seed and
++ *     the picker, while widgets without the hint keep their registry order.
++ *
++ * MEASURED BASELINE — every test below carries one of two labels, because the two are not
++ * the same kind of evidence and were once confused for each other:
++ *
++ *   [PROOF OF FIX]      fails against the pre-fix `route.ts` (the shipped 0.7.0 file, i.e.
++ *                       registry-ordered `allowedWidgets` and a seed guarded by `!layout`).
++ *   [REGRESSION GUARD]  passes against that same pre-fix file. It pins behaviour the fix
++ *                       must not break — it is NOT evidence that either defect was fixed.
++ *
++ * The labels were established by running this file against the pre-fix route with `../route`
++ * remapped to it (`moduleNameMapper`), not by reading the code. Re-measure the same way after
++ * changing a label.
++ */
++const tenantId = '11111111-1111-4111-8111-111111111111'
++const organizationId = '22222222-2222-4222-8222-222222222222'
++const userId = '33333333-3333-4333-8333-333333333333'
++
++const em = {
++  fork: jest.fn(),
++  find: jest.fn(),
++  findOne: jest.fn(),
++  create: jest.fn(),
++  persist: jest.fn(),
++  flush: jest.fn(),
++}
++
++const rbac = {
++  loadAcl: jest.fn(),
++  getEffectiveFeatures: jest.fn(),
++  userHasAllFeatures: jest.fn(),
++}
++
++const container = {
++  resolve: jest.fn((name: string) => {
++    if (name === 'em') return em
++    if (name === 'rbacService') return rbac
++    throw new Error(`Unexpected container resolve: ${name}`)
++  }),
++}
++
++const loadAllWidgetsMock = jest.fn()
++const resolveAllowedWidgetIdsMock = jest.fn()
++
++jest.mock('@open-mercato/shared/lib/di/container', () => ({
++  createRequestContainer: jest.fn(async () => container),
++}))
++
++jest.mock('@open-mercato/shared/lib/auth/server', () => ({
++  getAuthFromRequest: jest.fn(async () => ({ sub: userId, tenantId, orgId: organizationId })),
++}))
++
++jest.mock('@open-mercato/shared/lib/encryption/find', () => ({
++  findOneWithDecryption: jest.fn(async () => null),
++}))
++
++jest.mock('@open-mercato/core/modules/dashboards/lib/widgets', () => ({
++  loadAllWidgets: (...args: unknown[]) => loadAllWidgetsMock(...args),
++}))
++
++jest.mock('@open-mercato/core/modules/dashboards/lib/access', () => ({
++  resolveAllowedWidgetIds: (...args: unknown[]) => resolveAllowedWidgetIdsMock(...args),
++}))
++
++import { GET } from '../route'
++
++type WidgetStub = {
++  key: string
++  moduleId: string
++  metadata: {
++    id: string
++    title: string
++    defaultEnabled?: boolean
++    defaultPriority?: number
++  }
++}
++
++function widgetStub(
++  id: string,
++  extra: { defaultEnabled?: boolean; defaultPriority?: number } = {},
++): WidgetStub {
++  return {
++    key: `stub:${id}`,
++    moduleId: 'stub',
++    metadata: { id, title: id, defaultEnabled: true, ...extra },
++  }
++}
++
++function buildRequest(): Request {
++  return new Request('http://localhost/api/dashboards/layout', { method: 'GET' })
++}
++
++async function readWidgetIds(): Promise<string[]> {
++  const response = await GET(buildRequest())
++  expect(response.status).toBe(200)
++  const body = await response.json()
++  return body.layout.items.map((item: { widgetId: string }) => item.widgetId)
++}
++
++async function readPickerIds(): Promise<string[]> {
++  const response = await GET(buildRequest())
++  expect(response.status).toBe(200)
++  const body = await response.json()
++  return body.widgets.map((widget: { id: string }) => widget.id)
++}
++
++function registerWidgets(widgets: WidgetStub[]) {
++  loadAllWidgetsMock.mockResolvedValue(widgets)
++  resolveAllowedWidgetIdsMock.mockResolvedValue(widgets.map((widget) => widget.metadata.id))
++}
++
++describe('dashboards layout GET default seeding', () => {
++  beforeEach(() => {
++    jest.clearAllMocks()
++    em.fork.mockReturnValue(em)
++    em.flush.mockResolvedValue(undefined)
++    em.create.mockImplementation((_entity: unknown, payload: Record<string, unknown>) => ({ id: 'rec', ...payload }))
++    rbac.getEffectiveFeatures.mockResolvedValue(['dashboards.view'])
++  })
++
++  describe('a stored layout that normalizes to zero positions', () => {
++    // [PROOF OF FIX] pre-fix: reads back `[]` and writes `[]` — the blank dashboard stays blank.
++    it('re-seeds the defaults instead of leaving the dashboard blank forever', async () => {
++      const storedLayout = { id: 'layout-1', layoutJson: [] as unknown[] }
++      em.findOne.mockResolvedValue(storedLayout)
++      registerWidgets([widgetStub('sales-summary')])
++
++      expect(await readWidgetIds()).toEqual(['sales-summary'])
++      expect(storedLayout.layoutJson).toHaveLength(1)
++      expect(em.flush).toHaveBeenCalledTimes(1)
++      expect(em.create).not.toHaveBeenCalled()
++    })
++
++    // [PROOF OF FIX] pre-fix: the pruned row leaves zero positions and no seed follows.
++    it('re-seeds when every stored position was pruned as no longer allowed', async () => {
++      const storedLayout = {
++        id: 'layout-1',
++        layoutJson: [
++          { id: '66666666-6666-4666-8666-666666666666', widgetId: 'revoked-widget', order: 0, priority: 0, size: 'md' },
++        ],
++      }
++      em.findOne.mockResolvedValue(storedLayout)
++      registerWidgets([widgetStub('sales-summary')])
++
++      expect(await readWidgetIds()).toEqual(['sales-summary'])
++      expect(em.flush).toHaveBeenCalledTimes(1)
++    })
++
++    /**
++     * [PROOF OF FIX] pre-fix: same blank dashboard, reached a third way.
++     *
++     * `normalizeLayoutItems` drops anything that is not an object, so a `layoutJson` corrupted
++     * to scalars normalizes to zero positions while the row itself still exists. The defect was
++     * never about the literal `[]` value — it was about "the row exists, so the user has chosen",
++     * which any of these three shapes disproves.
++     */
++    it('re-seeds when the stored positions are not objects at all', async () => {
++      const storedLayout = { id: 'layout-1', layoutJson: [null, 7, 'sales-summary'] as unknown[] }
++      em.findOne.mockResolvedValue(storedLayout)
++      registerWidgets([widgetStub('sales-summary')])
++
++      expect(await readWidgetIds()).toEqual(['sales-summary'])
++      expect(storedLayout.layoutJson).toHaveLength(1)
++      expect(em.flush).toHaveBeenCalledTimes(1)
++      expect(em.create).not.toHaveBeenCalled()
++    })
++
++    // [REGRESSION GUARD] passes pre-fix too: seeding nothing when nothing opts in is old behaviour.
++    it('leaves the layout empty when no widget is enabled by default', async () => {
++      const storedLayout = { id: 'layout-1', layoutJson: [] as unknown[] }
++      em.findOne.mockResolvedValue(storedLayout)
++      registerWidgets([widgetStub('sales-summary', { defaultEnabled: false })])
++
++      expect(await readWidgetIds()).toEqual([])
++      expect(storedLayout.layoutJson).toEqual([])
++      expect(em.flush).not.toHaveBeenCalled()
++    })
++
++    // [REGRESSION GUARD] passes pre-fix too — the #5041 guard predates this change. It is here
++    // because re-seeding an empty stored layout must not become a way around that guard.
++    it('writes nothing when the widget registry is empty', async () => {
++      const storedLayout = { id: 'layout-1', layoutJson: [] as unknown[] }
++      em.findOne.mockResolvedValue(storedLayout)
++      loadAllWidgetsMock.mockResolvedValue([])
++      resolveAllowedWidgetIdsMock.mockResolvedValue([])
++
++      expect(await readWidgetIds()).toEqual([])
++      expect(em.flush).not.toHaveBeenCalled()
++      expect(em.persist).not.toHaveBeenCalled()
++      expect(em.create).not.toHaveBeenCalled()
++    })
++  })
++
++  describe('seed order', () => {
++    // [PROOF OF FIX] pre-fix: registry order wins, so the app module's widgets land last.
++    it('places widgets with a lower defaultPriority first, regardless of registry order', async () => {
++      em.findOne.mockResolvedValue(null)
++      registerWidgets([
++        widgetStub('core-new-orders'),
++        widgetStub('distributor-stock-gaps', { defaultPriority: 300 }),
++        widgetStub('distributor-next-actions', { defaultPriority: 100 }),
++        widgetStub('distributor-expiring-stock', { defaultPriority: 200 }),
++      ])
++
++      expect(await readWidgetIds()).toEqual([
++        'distributor-next-actions',
++        'distributor-expiring-stock',
++        'distributor-stock-gaps',
++        'core-new-orders',
++      ])
++    })
++
++    // [REGRESSION GUARD] passes pre-fix too: with no hint anywhere, both versions keep registry
++    // order. It pins that a module ignoring `defaultPriority` is never reshuffled.
++    it('keeps the registry order of widgets that declare no defaultPriority', async () => {
++      em.findOne.mockResolvedValue(null)
++      registerWidgets([
++        widgetStub('core-customer-tasks'),
++        widgetStub('core-new-orders'),
++        widgetStub('core-new-quotes'),
++      ])
++
++      expect(await readWidgetIds()).toEqual(['core-customer-tasks', 'core-new-orders', 'core-new-quotes'])
++    })
++
++    // [PROOF OF FIX] pre-fix: the two ranked widgets stay interleaved with the unranked ones.
++    it('keeps the registry order of ties and of the remaining unprioritized widgets', async () => {
++      em.findOne.mockResolvedValue(null)
++      registerWidgets([
++        widgetStub('core-customer-tasks'),
++        widgetStub('ranked-second', { defaultPriority: 100 }),
++        widgetStub('core-new-orders'),
++        widgetStub('ranked-first', { defaultPriority: 100 }),
++        widgetStub('core-new-quotes'),
++      ])
++
++      expect(await readWidgetIds()).toEqual([
++        'ranked-second',
++        'ranked-first',
++        'core-customer-tasks',
++        'core-new-orders',
++        'core-new-quotes',
++      ])
++    })
++
++    // [PROOF OF FIX] pre-fix: the picker is answered in registry order.
++    it('offers the picker catalog in the same order as the seed', async () => {
++      em.findOne.mockResolvedValue(null)
++      registerWidgets([
++        widgetStub('core-new-orders'),
++        widgetStub('distributor-next-actions', { defaultPriority: 100 }),
++      ])
++
++      expect(await readPickerIds()).toEqual(['distributor-next-actions', 'core-new-orders'])
++    })
++
++    /**
++     * [PROOF OF FIX] pre-fix: the picker is answered in registry order, so the widget the
++     * operator is meant to find first is offered second.
++     *
++     * `defaultPriority` and `defaultEnabled` are independent: a widget can be ranked for where
++     * it belongs on the screen without being switched on for everyone. This pins that the rank
++     * still governs the picker while the seed stays untouched by it.
++     */
++    it('ranks a widget that is not seeded by default in the picker all the same', async () => {
++      em.findOne.mockResolvedValue(null)
++      registerWidgets([
++        widgetStub('core-new-orders'),
++        widgetStub('distributor-opt-in', { defaultPriority: 100, defaultEnabled: false }),
++      ])
++
++      expect(await readPickerIds()).toEqual(['distributor-opt-in', 'core-new-orders'])
++      expect(await readWidgetIds()).toEqual(['core-new-orders'])
++    })
++
++    // [REGRESSION GUARD] passes pre-fix too: a stored layout was already read back verbatim.
++    // It pins that the new sort governs where a widget is OFFERED, never a layout already
++    // arranged by the user.
++    it('never reorders a layout the user already arranged', async () => {
++      const storedLayout = {
++        id: 'layout-1',
++        layoutJson: [
++          { id: '66666666-6666-4666-8666-666666666666', widgetId: 'core-new-orders', order: 0, priority: 0, size: 'md' },
++          { id: '77777777-7777-4777-8777-777777777777', widgetId: 'distributor-next-actions', order: 1, priority: 1, size: 'md' },
++        ],
++      }
++      em.findOne.mockResolvedValue(storedLayout)
++      registerWidgets([
++        widgetStub('core-new-orders'),
++        widgetStub('distributor-next-actions', { defaultPriority: 100 }),
++      ])
++
++      expect(await readWidgetIds()).toEqual(['core-new-orders', 'distributor-next-actions'])
++      expect(em.flush).not.toHaveBeenCalled()
++    })
++  })
++})
+--- /dev/null
++++ b/packages/core/src/modules/sales/__tests__/calculationContext.test.ts
+@@ -0,0 +1,267 @@
++/** @jest-environment node */
++
++import { commandRegistry } from '@open-mercato/shared/lib/commands/registry'
++import type { SalesCalculationContext, SalesDocumentCalculationResult } from '../lib/types'
++import { SalesQuoteAdjustment, SalesQuoteLine } from '../data/entities'
++
++const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111'
++const TENANT_ID = '22222222-2222-4222-8222-222222222222'
++const QUOTE_ID = '33333333-3333-4333-8333-333333333333'
++const ORDER_ID = '44444444-4444-4444-8444-444444444444'
++const CUSTOMER_ID = '55555555-5555-4555-8555-555555555555'
++const ADJUSTMENT_ID = '66666666-6666-4666-8666-666666666666'
++
++type DecryptedFind = { one: unknown; many: unknown[] }
++
++const decrypted: DecryptedFind = { one: null, many: [] }
++
++jest.mock('@open-mercato/shared/lib/encryption/find', () => ({
++  findOneWithDecryption: jest.fn(async () => decrypted.one),
++  findWithDecryption: jest.fn(async () => decrypted.many),
++  findAndCountWithDecryption: jest.fn(async () => [decrypted.many, decrypted.many.length]),
++}))
++
++jest.mock('@open-mercato/shared/lib/i18n/server', () => ({
++  resolveTranslations: async () => ({
++    locale: 'en',
++    dict: {},
++    t: (key: string) => key,
++    translate: (key: string) => key,
++  }),
++}))
++
++jest.mock('@open-mercato/shared/lib/crud/custom-fields', () => ({
++  loadCustomFieldValues: jest.fn(async () => ({})),
++  setRecordCustomFields: jest.fn(async () => undefined),
++}))
++
++jest.mock('@open-mercato/shared/lib/commands/flush', () => ({
++  withAtomicFlush: async (_em: unknown, phases: Array<() => unknown | Promise<unknown>>) => {
++    for (const phase of phases) await phase()
++  },
++}))
++
++jest.mock('@open-mercato/shared/lib/crud/optimistic-lock-command', () => ({
++  enforceCommandOptimisticLockWithGuards: jest.fn(async () => undefined),
++}))
++
++function buildQuote(customerEntityId: string | null) {
++  return {
++    id: QUOTE_ID,
++    organizationId: ORGANIZATION_ID,
++    tenantId: TENANT_ID,
++    currencyCode: 'PLN',
++    customerEntityId,
++    shippingMethodSnapshot: { code: 'dhl' },
++    paymentMethodSnapshot: { code: 'transfer' },
++    shippingMethodId: null,
++    paymentMethodId: null,
++    shippingMethodCode: 'dhl',
++    paymentMethodCode: 'transfer',
++    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
++  }
++}
++
++function buildOrder(customerEntityId: string | null) {
++  return {
++    id: ORDER_ID,
++    organizationId: ORGANIZATION_ID,
++    tenantId: TENANT_ID,
++    currencyCode: 'EUR',
++    customerEntityId,
++    shippingMethodSnapshot: { code: 'inpost' },
++    paymentMethodSnapshot: { code: 'card' },
++    paidTotalAmount: null,
++    refundedTotalAmount: null,
++    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
++  }
++}
++
++const emptyCalculation: SalesDocumentCalculationResult = {
++  kind: 'order',
++  currencyCode: 'PLN',
++  lines: [],
++  adjustments: [],
++  totals: {
++    subtotalNetAmount: 0,
++    subtotalGrossAmount: 0,
++    discountTotalAmount: 0,
++    taxTotalAmount: 0,
++    grandTotalNetAmount: 0,
++    grandTotalGrossAmount: 0,
++  },
++  metadata: {},
++}
++
++function createCapturingCalculationService() {
++  const contexts: SalesCalculationContext[] = []
++  const service = {
++    async calculateDocumentTotals(opts: { context: SalesCalculationContext }) {
++      contexts.push(opts.context)
++      return emptyCalculation
++    },
++    async calculateLine() {
++      throw new Error('[internal] calculateLine is not exercised by this test')
++    },
++  }
++  return { contexts, service }
++}
++
++function createQuoteAdjustmentEm(quote: ReturnType<typeof buildQuote>) {
++  const adjustment = {
++    id: ADJUSTMENT_ID,
++    quote,
++    organizationId: ORGANIZATION_ID,
++    tenantId: TENANT_ID,
++    scope: 'order',
++    kind: 'custom',
++    position: 0,
++  }
++  return {
++    fork() {
++      return this
++    },
++    async find(entity: unknown) {
++      if (entity === SalesQuoteLine) return []
++      if (entity === SalesQuoteAdjustment) return [adjustment]
++      return []
++    },
++    async findOne() {
++      return null
++    },
++    create(_entity: unknown, data: Record<string, unknown>) {
++      return { ...data }
++    },
++    remove() {},
++    persist() {},
++    async flush() {},
++  }
++}
++
++function buildCommandCtx(container: { resolve: (key: string) => unknown }) {
++  return {
++    container,
++    auth: { tenantId: TENANT_ID, orgId: ORGANIZATION_ID, sub: 'user-1', isSuperAdmin: true },
++    selectedOrganizationId: ORGANIZATION_ID,
++    organizationScope: null,
++    organizationIds: [ORGANIZATION_ID],
++    request: null,
++  }
++}
++
++async function runQuoteAdjustmentDelete(customerEntityId: string | null) {
++  const quote = buildQuote(customerEntityId)
++  decrypted.one = quote
++  decrypted.many = []
++  const em = createQuoteAdjustmentEm(quote)
++  const { contexts, service } = createCapturingCalculationService()
++  const container = {
++    resolve(key: string) {
++      if (key === 'em') return em
++      if (key === 'salesCalculationService') return service
++      throw new Error(`[internal] unregistered test dependency: ${key}`)
++    },
++  }
++
++  const handler = commandRegistry.get('sales.quotes.adjustments.delete')
++  expect(handler).toBeTruthy()
++  await handler!.execute(
++    { body: { quoteId: QUOTE_ID, id: ADJUSTMENT_ID } },
++    buildCommandCtx(container) as never,
++  )
++  expect(contexts).toHaveLength(1)
++  return contexts[0]
++}
++
++async function runOrderRecalculation(customerEntityId: string | null) {
++  const { recalculateOrderTotalsForDisplay } = await import('../commands/returns')
++  const order = buildOrder(customerEntityId)
++  decrypted.one = order
++  decrypted.many = []
++  const { contexts, service } = createCapturingCalculationService()
++  const em = { fork() { return this } }
++  const container = {
++    resolve(key: string) {
++      if (key === 'salesCalculationService') return service
++      throw new Error(`[internal] unregistered test dependency: ${key}`)
++    },
++  }
++
++  await recalculateOrderTotalsForDisplay(
++    em as never,
++    container,
++    ORDER_ID,
++    { tenantId: TENANT_ID, organizationId: ORGANIZATION_ID },
++  )
++  expect(contexts).toHaveLength(1)
++  return contexts[0]
++}
++
++// Registered once for the whole file: the module import is cached, so a per-describe
++// clear+reimport would leave the registry empty for later blocks.
++beforeAll(async () => {
++  commandRegistry.clear?.()
++  await import('../commands/documents')
++})
++
++describe('sales calculation context identity fields', () => {
++  describe('the document command factory', () => {
++    it('carries the document id and the customer id it was built from', async () => {
++      const context = await runQuoteAdjustmentDelete(CUSTOMER_ID)
++
++      expect(context.documentId).toBe(QUOTE_ID)
++      expect(context.customerId).toBe(CUSTOMER_ID)
++    })
++
++    it('reports an absent customer as null rather than undefined or an empty string', async () => {
++      const context = await runQuoteAdjustmentDelete(null)
++
++      expect(context.customerId).toBeNull()
++      expect(context.customerId).not.toBeUndefined()
++      expect(context.documentId).toBe(QUOTE_ID)
++    })
++
++    it('leaves the pre-existing context fields untouched', async () => {
++      const context = await runQuoteAdjustmentDelete(CUSTOMER_ID)
++
++      expect(context.tenantId).toBe(TENANT_ID)
++      expect(context.organizationId).toBe(ORGANIZATION_ID)
++      expect(context.currencyCode).toBe('PLN')
++      expect(context.metadata).toEqual({
++        shippingMethod: expect.objectContaining({ code: 'dhl' }),
++        paymentMethod: expect.objectContaining({ code: 'transfer' }),
++      })
++      expect(context.resolve).toBeUndefined()
++    })
++  })
++
++  describe('the returns factory', () => {
++    it('carries the order id and the customer id off the order it was handed', async () => {
++      const context = await runOrderRecalculation(CUSTOMER_ID)
++
++      expect(context.documentId).toBe(ORDER_ID)
++      expect(context.customerId).toBe(CUSTOMER_ID)
++    })
++
++    it('reports an absent customer as null rather than undefined or an empty string', async () => {
++      const context = await runOrderRecalculation(null)
++
++      expect(context.customerId).toBeNull()
++      expect(context.customerId).not.toBeUndefined()
++      expect(context.documentId).toBe(ORDER_ID)
++    })
++
++    it('leaves the pre-existing context fields untouched', async () => {
++      const context = await runOrderRecalculation(CUSTOMER_ID)
++
++      expect(context.tenantId).toBe(TENANT_ID)
++      expect(context.organizationId).toBe(ORGANIZATION_ID)
++      expect(context.currencyCode).toBe('EUR')
++      expect(context.metadata).toEqual({
++        shippingMethod: { code: 'inpost' },
++        paymentMethod: { code: 'card' },
++      })
++      expect(context.resolve).toBeUndefined()
++    })
++  })
++})
+--- /dev/null
++++ b/packages/core/src/modules/wms/api/__tests__/lots.route.test.ts
+@@ -0,0 +1,158 @@
++/** @jest-environment node */
++
++jest.mock('@open-mercato/shared/lib/i18n/server', () => ({
++  resolveTranslations: jest.fn().mockResolvedValue({
++    translate: (key: string, fallback?: string) => fallback ?? key,
++  }),
++}))
++
++import type { CrudCtx } from '@open-mercato/shared/lib/crud/factory'
++import { buildLotListFilters, type LotListQuery } from '../lots/route'
++
++const ORG_ID = 'ca70e868-f639-41ce-b509-9681c802abce'
++const TENANT_ID = '04b4e92a-94a3-4b7d-8a7e-2450fc538b23'
++const LOT_WITH_STOCK_A = '11111111-1111-4111-8111-111111111111'
++const LOT_WITH_STOCK_B = '22222222-2222-4222-8222-222222222222'
++const LOT_WITHOUT_STOCK = '33333333-3333-4333-8333-333333333333'
++const NO_MATCH_LOT_ID = '00000000-0000-4000-8000-000000000000'
++
++type ExecuteMock = jest.Mock<Promise<Array<{ lot_id: string }>>, [string, unknown[]?]>
++
++function createCtx(options: {
++  lotIdsWithStock?: string[]
++  organizationId?: string | null
++  tenantId?: string | null
++} = {}): { ctx: CrudCtx; execute: ExecuteMock } {
++  const execute: ExecuteMock = jest.fn(async () =>
++    (options.lotIdsWithStock ?? []).map((lotId) => ({ lot_id: lotId })),
++  )
++  const ctx = {
++    container: { resolve: () => ({ getConnection: () => ({ execute }) }) },
++    auth: { tenantId: options.tenantId === undefined ? TENANT_ID : options.tenantId },
++    organizationScope: null,
++    selectedOrganizationId: options.organizationId === undefined ? ORG_ID : options.organizationId,
++    organizationIds: null,
++  } as unknown as CrudCtx
++  return { ctx, execute }
++}
++
++function createQuery(overrides: Partial<LotListQuery> = {}): LotListQuery {
++  return { page: 1, pageSize: 25, ...overrides } as LotListQuery
++}
++
++function readIdFilter(filters: Record<string, unknown>): string[] | undefined {
++  const idFilter = filters.id as { $in?: unknown } | undefined
++  const values = idFilter?.$in
++  return Array.isArray(values) ? (values as string[]) : undefined
++}
++
++describe('wms lots list filters — expiry window availability parity', () => {
++  it('narrows expiringSoon listings to lots that still carry available stock', async () => {
++    const { ctx, execute } = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A, LOT_WITH_STOCK_B] })
++
++    const filters = await buildLotListFilters(createQuery({ expiryWindow: 'expiringSoon' }), ctx)
++
++    expect(execute).toHaveBeenCalledTimes(1)
++    expect(readIdFilter(filters)).toEqual([LOT_WITH_STOCK_A, LOT_WITH_STOCK_B])
++  })
++
++  it('applies the same availability narrowing to expiringSoon and pastDue', async () => {
++    const expiringSoon = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A] })
++    const pastDue = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A] })
++
++    const expiringSoonFilters = await buildLotListFilters(
++      createQuery({ expiryWindow: 'expiringSoon' }),
++      expiringSoon.ctx,
++    )
++    const pastDueFilters = await buildLotListFilters(
++      createQuery({ expiryWindow: 'pastDue' }),
++      pastDue.ctx,
++    )
++
++    expect(readIdFilter(expiringSoonFilters)).toEqual(readIdFilter(pastDueFilters))
++    expect(expiringSoon.execute.mock.calls[0]?.[1]).toEqual([ORG_ID, TENANT_ID])
++    expect(pastDue.execute.mock.calls[0]?.[1]).toEqual([ORG_ID, TENANT_ID])
++  })
++
++  it('returns as many rows as the dashboard tile counts for the same lot set', async () => {
++    const lotsInWindow = [LOT_WITH_STOCK_A, LOT_WITH_STOCK_B, LOT_WITHOUT_STOCK]
++    const lotsWithStock = lotsInWindow.filter((lotId) => lotId !== LOT_WITHOUT_STOCK)
++    const { ctx } = createCtx({ lotIdsWithStock: lotsWithStock })
++
++    const filters = await buildLotListFilters(createQuery({ expiryWindow: 'expiringSoon' }), ctx)
++
++    const listedLotIds = readIdFilter(filters) ?? []
++    expect(listedLotIds).toHaveLength(lotsWithStock.length)
++    expect(listedLotIds).not.toContain(LOT_WITHOUT_STOCK)
++  })
++
++  it('blocks every row when no lot in the window carries available stock', async () => {
++    const { ctx } = createCtx({ lotIdsWithStock: [] })
++
++    const filters = await buildLotListFilters(createQuery({ expiryWindow: 'expiringSoon' }), ctx)
++
++    expect(readIdFilter(filters)).toEqual([NO_MATCH_LOT_ID])
++  })
++
++  it('intersects the availability narrowing with an explicit ids filter', async () => {
++    const { ctx } = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A, LOT_WITH_STOCK_B] })
++
++    const filters = await buildLotListFilters(
++      createQuery({ expiryWindow: 'expiringSoon', ids: `${LOT_WITH_STOCK_B},${LOT_WITHOUT_STOCK}` }),
++      ctx,
++    )
++
++    expect(readIdFilter(filters)).toEqual([LOT_WITH_STOCK_B])
++  })
++
++  it('keeps the ids filter untouched when no expiry window or warehouse is requested', async () => {
++    const { ctx, execute } = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A] })
++
++    const filters = await buildLotListFilters(
++      createQuery({ ids: `${LOT_WITH_STOCK_A}, ${LOT_WITHOUT_STOCK}` }),
++      ctx,
++    )
++
++    expect(execute).not.toHaveBeenCalled()
++    expect(readIdFilter(filters)).toEqual([LOT_WITH_STOCK_A, LOT_WITHOUT_STOCK])
++  })
++
++  it('scopes the availability probe by warehouse when one is selected', async () => {
++    const warehouseId = '44444444-4444-4444-8444-444444444444'
++    const { ctx, execute } = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A] })
++
++    await buildLotListFilters(createQuery({ expiryWindow: 'expiringSoon', warehouseId }), ctx)
++
++    const [sql, params] = execute.mock.calls[0] ?? []
++    expect(sql).toContain('warehouse_id = ?')
++    expect(params).toEqual([ORG_ID, TENANT_ID, warehouseId])
++  })
++
++  it('skips the availability probe when the request has no tenant or organization scope', async () => {
++    const { ctx, execute } = createCtx({ organizationId: null })
++
++    const filters = await buildLotListFilters(createQuery({ expiryWindow: 'expiringSoon' }), ctx)
++
++    expect(execute).not.toHaveBeenCalled()
++    expect(readIdFilter(filters)).toBeUndefined()
++  })
++
++  it('applies an expiry date window and passes through the other list filters', async () => {
++    const catalogVariantId = '55555555-5555-4555-8555-555555555555'
++    const { ctx } = createCtx({ lotIdsWithStock: [LOT_WITH_STOCK_A] })
++
++    const filters = await buildLotListFilters(
++      createQuery({ expiryWindow: 'expiringSoon', catalogVariantId, status: 'available', search: 'CHEM' }),
++      ctx,
++    )
++
++    expect(filters.expires_at).toBeDefined()
++    expect(filters.catalog_variant_id).toEqual({ $eq: catalogVariantId })
++    expect(filters.status).toEqual({ $eq: 'available' })
++    expect(filters.$or).toEqual([
++      { sku: { $ilike: '%CHEM%' } },
++      { lot_number: { $ilike: '%CHEM%' } },
++      { batch_number: { $ilike: '%CHEM%' } },
++    ])
++  })
++})

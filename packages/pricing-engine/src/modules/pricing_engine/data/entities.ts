@@ -695,3 +695,56 @@ export class PricingShadowObservation extends PricingLedgerEntity {
   @Property({ name: 'observed_at', type: Date })
   observedAt: Date = new Date()
 }
+
+export type PricingDeadstockVerdict = 'confirmed' | 'dismissed' | 'actioned'
+
+/**
+ * A human's judgement about one dormant position.
+ *
+ * Everything else this feature needs — purchase cost, carrying rates, rotation, stock age — already
+ * exists somewhere in the platform and is read. This does not: nowhere does the model record that a
+ * person looked at a product, decided it was or was not deadstock, and said so.
+ *
+ * `reviewAt` is what keeps the screen honest. A dismissal is itself a judgement with a shelf life —
+ * "not now, ask me in a quarter" — and without an expiry the list would slowly empty out as every
+ * awkward row got clicked away once. When the review date passes the product comes back.
+ *
+ * `snapshot` holds the figures the operator actually saw. A decision has to be auditable against
+ * what was on screen at the time, not against what the same query returns a year later.
+ */
+@Entity({ tableName: 'pricing_deadstock_decisions' })
+@Index({
+  name: 'pricing_deadstock_decisions_scope_idx',
+  properties: ['tenantId', 'organizationId', 'catalogProductId'],
+})
+export class PricingDeadstockDecision extends PricingScopedEntity {
+  [OptionalProps]?: 'createdAt' | 'updatedAt' | 'isDemo' | 'verdict' | 'decidedAt'
+
+  @Property({ name: 'catalog_product_id', type: 'uuid' })
+  catalogProductId!: string
+
+  @Property({ name: 'catalog_variant_id', type: 'uuid', nullable: true })
+  catalogVariantId?: string | null
+
+  @Property({ name: 'verdict', type: 'text', default: 'confirmed' })
+  verdict: PricingDeadstockVerdict = 'confirmed'
+
+  @Property({ name: 'reason_code', type: 'text', nullable: true })
+  reasonCode?: string | null
+
+  @Property({ name: 'note', type: 'text', nullable: true })
+  note?: string | null
+
+  @Property({ name: 'decided_by', type: 'uuid', nullable: true })
+  decidedBy?: string | null
+
+  @Property({ name: 'decided_at', type: Date })
+  decidedAt: Date = new Date()
+
+  /** When a dismissal lapses and the product returns to the list. Null means it never lapses. */
+  @Property({ name: 'review_at', type: Date, nullable: true })
+  reviewAt?: Date | null
+
+  @Property({ name: 'snapshot', type: 'jsonb', nullable: true })
+  snapshot?: Record<string, unknown> | null
+}

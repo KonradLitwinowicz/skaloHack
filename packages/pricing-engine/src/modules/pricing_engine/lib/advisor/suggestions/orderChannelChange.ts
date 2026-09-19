@@ -8,6 +8,7 @@ import {
   suggestionExplainKey,
   type AdvisorRun,
 } from '../runner'
+import { NON_CHANNEL_SCENARIO_CODES } from '../../seedDefaults'
 import type { Suggestion } from '../schemas'
 
 const KIND = 'order_channel_change' as const
@@ -32,6 +33,9 @@ export async function generateOrderChannelChangeSuggestions(run: AdvisorRun): Pr
 
   for (const code of run.inputs.orderScenarioCodes) {
     if (code === currentCode) continue
+    // A behaviour is not a channel. `pricing_order_scenarios` stores both, and the code list this
+    // loop walks is unfiltered, so the exclusion has to happen here.
+    if (NON_CHANNEL_SCENARIO_CODES.includes(code)) continue
     if (!run.inputs.params.orderScenario(code)) continue
 
     const variant = await run.price(run.context.lines, { orderScenarioCode: code })

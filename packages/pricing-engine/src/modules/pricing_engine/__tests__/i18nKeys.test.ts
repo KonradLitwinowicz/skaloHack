@@ -1,4 +1,7 @@
+import de from '../i18n/de.json'
 import en from '../i18n/en.json'
+import es from '../i18n/es.json'
+import ko from '../i18n/ko.json'
 import pl from '../i18n/pl.json'
 import { implementedComponents, PIPELINE_COMPONENT_CODES } from '../lib/components'
 import { runPipeline } from '../lib/pipeline'
@@ -84,12 +87,22 @@ describe('i18n key coverage', () => {
     expect(missing).toEqual([])
   })
 
-  it('keeps every locale at exact key parity with English', () => {
-    expect([...plKeys].sort()).toEqual([...enKeys].sort())
+  // Every shipped locale, not just Polish. `yarn i18n:check-sync` is a CI gate over all five, and a
+  // test that names all of them while checking one is worse than no test: it reports safety it does
+  // not provide, which is exactly how two keys once shipped to en and pl alone.
+  it.each([
+    ['pl', pl],
+    ['de', de],
+    ['es', es],
+    ['ko', ko],
+  ])('keeps %s at exact key parity with English', (_locale, dictionary) => {
+    expect(Object.keys(dictionary as Record<string, string>).sort()).toEqual([...enKeys].sort())
   })
 
-  it('never ships an explain template whose placeholder nothing supplies', async () => {
-    const result = await SCENARIOS[0].run()
+  // Every scenario, not only the happy path: the branches that matter most here are precisely the
+  // ones a happy-path run never reaches, and those explain templates carry the most placeholders.
+  it.each(SCENARIOS)('never ships an unsupplied placeholder on the "$name" path', async ({ run }) => {
+    const result = await run()
     for (const line of result.lines) {
       for (const component of line.breakdown) {
         const template = (en as Record<string, string>)[component.explainKey]

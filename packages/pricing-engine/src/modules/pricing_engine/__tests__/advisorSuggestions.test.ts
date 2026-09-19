@@ -1,9 +1,10 @@
 import { toDecimal } from '../lib/decimal'
-import { basketProfitOf, type AdvisorRun, type BasketOverrides } from '../lib/advisor/runner'
+import { basketProfitOf, dedupeByChange, type AdvisorRun, type BasketOverrides } from '../lib/advisor/runner'
 import { generateFullPackRoundingSuggestions } from '../lib/advisor/suggestions/fullPackRounding'
 import { generateOrderChannelChangeSuggestions } from '../lib/advisor/suggestions/orderChannelChange'
 import { generateVolumeThresholdSuggestions } from '../lib/advisor/suggestions/volumeThreshold'
 import { generateCheaperEquivalentSuggestions } from '../lib/advisor/suggestions/cheaperEquivalent'
+import { generateBasketConsolidationSuggestions } from '../lib/advisor/suggestions/basketConsolidation'
 import { computeVolumeSensitivity } from '../lib/advisor/volumeSensitivity'
 import { computeMarginFloors } from '../lib/advisor/insights'
 import { priceWithInputs, type PricingInputs } from '../services/pricingService'
@@ -115,6 +116,19 @@ describe('volume_threshold', () => {
       expect(suggestion.raisesCustomerPrice).toBe(false)
       expect(Number(suggestion.change.toQuantity)).toBeGreaterThan(Number(suggestion.change.fromQuantity))
     }
+  })
+
+  // Regression: the two kinds used to share the pack ladder, so `box: 10` on a line of 24 made both
+  // of them propose 30 under different titles. `maxPerKind` caps within a kind and could not see it,
+  // so the screen counted one action twice. A carton of 7 is the clean probe: no growth factor lands
+  // on 28, so a 28 here could only have come from the ladder.
+  it('no longer draws candidates from the pack ladder', async () => {
+    const run = await buildRun({ product: { unitConversions: { box: '7' } } })
+    const [packSuggestion] = await generateFullPackRoundingSuggestions(run)
+    const volumeSuggestions = await generateVolumeThresholdSuggestions(run)
+
+    expect(packSuggestion.change.toQuantity).toBe('28')
+    expect(volumeSuggestions.map((entry) => entry.change.toQuantity)).not.toContain('28')
   })
 
   it('flags the annual purchase tier when the added units would close the gap', async () => {
@@ -241,5 +255,88 @@ describe('basket profit', () => {
     expect(basketProfitOf(run.baseline)).toBe(
       toDecimal(run.baseline.totalNet) - toDecimal(run.baseline.totalCostNet),
     )
+  })
+})
+
+describe('dedupeByChange', () => {
+  // The second line of defence: even if two generators independently land on the same quantity,
+  // the rep sees one card. Identity is the change, never the kind.
+  it('collapses two kinds proposing the same quantity into the better-explained one', async () => {
+    const run = await buildRun({ product: { unitConversions: { box: '10' } } })
+    const packSuggestions = await generateFullPackRoundingSuggestions(run)
+    const impostor = { ...packSuggestions[0], code: 'volume_threshold' as const }
+
+    const deduped = dedupeByChange([impostor, ...packSuggestions])
+
+    expect(deduped).toHaveLength(packSuggestions.length)
+    expect(deduped[0].code).toBe('full_pack_rounding')
+  })
+
+  it('keeps suggestions whose changes genuinely differ', async () => {
+    const run = await buildRun({ product: { unitConversions: { box: '7' } } })
+    const suggestions = [
+      ...(await generateFullPackRoundingSuggestions(run)),
+      ...(await generateVolumeThresholdSuggestions(run)),
+      ...(await generateOrderChannelChangeSuggestions(run)),
+    ]
+
+    expect(suggestions.length).toBeGreaterThan(1)
+    expect(dedupeByChange(suggestions)).toHaveLength(suggestions.length)
+  })
+
+  // A growth factor can still coincide with a pack multiple - 24 x 1.25 is exactly two cartons of
+  // 10 - which is why the generator split alone is not enough and this collapse has to exist.
+  it('collapses a growth step that coincides with a whole pack', async () => {
+    const run = await buildRun({ product: { unitConversions: { box: '10' } } })
+    const suggestions = [
+      ...(await generateFullPackRoundingSuggestions(run)),
+      ...(await generateVolumeThresholdSuggestions(run)),
+    ]
+    const deduped = dedupeByChange(suggestions)
+
+    expect(suggestions.filter((entry) => entry.change.toQuantity === '30')).toHaveLength(2)
+    expect(deduped.filter((entry) => entry.change.toQuantity === '30')).toHaveLength(1)
+    expect(deduped.find((entry) => entry.change.toQuantity === '30')?.code).toBe('full_pack_rounding')
+  })
+
+  it('names the product a suggestion is about', async () => {
+    const run = await buildRun({ product: { unitConversions: { box: '10' } } })
+    const [suggestion] = await generateFullPackRoundingSuggestions(run)
+
+    expect(suggestion.subject?.productId).toBe(PRODUCT_ID)
+    expect(suggestion.subject?.sku).toBe(run.inputs.catalog.byProductId.get(PRODUCT_ID)?.sku ?? null)
+  })
+
+  // `change.productId` is set on these kinds too, as an anchor for the arithmetic, so the subject
+  // cannot be derived from its presence. The run must actually PRODUCE suggestions, or the
+  // assertion passes over an empty list and guards nothing.
+  it('leaves the subject null for a suggestion that moves the whole order', async () => {
+    const run = await buildRun({ context: { orderScenarioCode: 'phone' } })
+    const suggestions = await generateOrderChannelChangeSuggestions(run)
+
+    expect(suggestions.length).toBeGreaterThan(0)
+    for (const suggestion of suggestions) {
+      expect(suggestion.change.productId).toBeTruthy()
+      expect(suggestion.subject).toBeNull()
+    }
+  })
+
+  // Regression: consolidation records nothing in `change` that separates one merge option from
+  // another, so a blanket collapse on that payload turned five offers into one.
+  it('keeps every consolidation option even though their change payloads are identical', async () => {
+    const run = await buildRun({
+      advisor: {
+        maxPerKind: 5,
+        consolidateWith: [
+          [{ productId: PRODUCT_ID, quantity: '12' }],
+          [{ productId: PRODUCT_ID, quantity: '40' }],
+        ],
+      },
+    })
+    const suggestions = await generateBasketConsolidationSuggestions(run)
+
+    expect(suggestions.length).toBeGreaterThan(1)
+    expect(new Set(suggestions.map((entry) => JSON.stringify(entry.change))).size).toBe(1)
+    expect(dedupeByChange(suggestions)).toHaveLength(suggestions.length)
   })
 })

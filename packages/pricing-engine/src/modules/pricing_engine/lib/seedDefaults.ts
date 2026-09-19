@@ -68,6 +68,56 @@ export const DEMO_PROCESS_STEPS = [
   },
 ] as const
 
+/**
+ * A customer whose order is the same order every week is CHEAPER TO SERVE, not entitled to a
+ * discount: nothing is negotiated at intake and the picker works from a standing list. The saving
+ * therefore belongs on the cost side, where the percentage margin survives it untouched and the
+ * lower price can be defended line by line in front of the customer.
+ */
+export const REPEAT_ORDER_SCENARIO_CODE = 'repeat_order'
+
+/**
+ * The band the seeded `repeat_order` multipliers must stay inside, and the reason they may not
+ * leave it.
+ *
+ * Loaded rates, from the rows above: sales rep 85.00 x 1.22 = 103.70 PLN/h, warehouse
+ * 48.00 x 1.22 = 58.56 PLN/h. At multiplier 1.00 the two affected steps cost
+ * `order_intake` 6 min -> 10.3700 PLN per order and `picking` 2.5 min -> 2.4400 PLN per line.
+ *
+ * `order_intake` 0.25 (min of the band). Against the ONLY baseline the rule is allowed to replace,
+ * `ideal_file` at 0.35, that removes (0.35 - 0.25) x 10.3700 = 1.0370 PLN per order — 28.6% of
+ * that channel's own 3.6295 PLN intake cost. The upper edge 0.35 is the no-op case, so the band is
+ * bounded on both sides by numbers the distributor measured.
+ *
+ * Why the band stops at 0.25 rather than going lower, and why eligibility is restricted: a scenario
+ * REPLACES the channel scenario, so the saving it fabricates is `(baseline - repeat) x 10.3700`.
+ * Applied to `email` (1.30) a 0.25 multiplier would remove 10.8885 PLN of intake labour — three
+ * times the entire 3.6295 PLN intake cost of the cheapest channel the distributor actually
+ * measured. A saving larger than the whole cheapest measurement of the activity it claims to
+ * shorten cannot be defended, so the guard is: the multiplier delta may not exceed 0.35, the whole
+ * of `ideal_file`. `nonstandard_file` (0.90) fails that guard by 0.65 -> 6.7405 PLN and is
+ * therefore NOT eligible either; see `horecaCustomerData.isRepeatOrderCustomer`.
+ *
+ * `picking` 0.90. A repeat basket is picked against a standing list rather than read line by line,
+ * worth 0.2440 PLN per line — 10% of the step. No channel in this file moves `picking` at all, so
+ * unlike the intake figure this one has no measured sibling to calibrate against: it is the
+ * smallest visible step down, deliberately, because it is the weakest-evidenced number here.
+ */
+/**
+ * Scenario codes that are a BEHAVIOUR, not an ordering channel.
+ *
+ * `pricing_order_scenarios` holds both, because both scale the same process steps. The advisor's
+ * channel-change generator must not offer these: "move this customer to repeat ordering" is not a
+ * channel a rep can switch them to, it is a description of how that customer already buys. Offering
+ * it would produce a saving nobody can act on, attached to a decision nobody can make.
+ */
+export const NON_CHANNEL_SCENARIO_CODES: readonly string[] = [REPEAT_ORDER_SCENARIO_CODE]
+
+export const REPEAT_ORDER_MULTIPLIER_BAND = {
+  order_intake: { min: '0.25', max: '0.35' },
+  picking: { min: '0.90', max: '1.00' },
+} as const
+
 // Multipliers on `order_intake` are calibrated so the channel handling cost spans roughly
 // 3.60 PLN (structured file) to 25.60 PLN (phone), matching the distributor's own measurement.
 // Base: 6 min x 85 PLN/h x 1.22 overhead = 10.37 PLN at multiplier 1.
@@ -106,6 +156,12 @@ export const DEMO_ORDER_SCENARIOS = [
     code: 'rep_visit',
     label: 'pricing_engine.scenarios.repVisit',
     stepMultipliers: { order_intake: '4.00' },
+    extraStepCodes: [],
+  },
+  {
+    code: REPEAT_ORDER_SCENARIO_CODE,
+    label: 'pricing_engine.scenarios.repeatOrder',
+    stepMultipliers: { order_intake: '0.25', picking: '0.90' },
     extraStepCodes: [],
   },
 ] as const

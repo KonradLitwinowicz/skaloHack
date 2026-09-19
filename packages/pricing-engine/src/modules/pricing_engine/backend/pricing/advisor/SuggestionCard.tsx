@@ -6,7 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@open-mercato/ui/primi
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { ConfidenceBadge } from '../../../components/ConfidenceBadge'
 import { formatMoney } from '../../../lib/frontend/marginMath'
-import type { AdvisorSuggestion } from '../../../lib/frontend/advisorTypes'
+import type {
+  AdvisorObjectiveContribution,
+  AdvisorObjectiveMetric,
+  AdvisorObjectiveScore,
+  AdvisorSuggestion,
+} from '../../../lib/frontend/advisorTypes'
 
 export type SuggestionCardProps = {
   suggestion: AdvisorSuggestion
@@ -25,6 +30,16 @@ const KIND_FALLBACK: Record<AdvisorSuggestion['code'], string> = {
 
 function renderTemplate(t: TranslateFn, key: string, values: Record<string, string>): string {
   return t(key, key).replace(/\{(\w+)\}/g, (match, token: string) => values[token] ?? match)
+}
+
+// A card that says "round up to a whole pack" over a five-line basket is unactionable until it
+// says WHICH line. Title first, SKU second, id last — never an id alone when a name exists.
+function subjectLabel(suggestion: AdvisorSuggestion): string | null {
+  const subject = suggestion.subject
+  if (!subject) return null
+  const parts = [subject.title, subject.sku].filter((part): part is string => Boolean(part))
+  if (parts.length === 0) return subject.productId
+  return parts.join(' \u00b7 ')
 }
 
 function toNumber(value: string | null | undefined): number {
@@ -65,8 +80,92 @@ function ComparisonRow({ label, before, after, currencyCode, suffix }: Compariso
   )
 }
 
+export const OBJECTIVE_METRIC_FALLBACK: Record<AdvisorObjectiveMetric, string> = {
+  marginPercent: 'Margin on price',
+  profitNet: 'Profit on the whole order',
+  revenueNet: 'Revenue',
+  unitCostNet: 'Cost to serve one unit',
+  productCost: 'Purchase cost',
+  operationalCost: 'Order handling labour',
+  packagingCost: 'Packaging',
+  warehouseCost: 'Warehousing',
+  logisticsCost: 'Delivery',
+}
+
+/**
+ * The per-objective breakdown behind the ranking. A weighted score that arrives as one number is
+ * an assertion; the operator configured these weights and has to be able to see each one paying
+ * out, including the ones they switched off.
+ */
+function ObjectiveBreakdown({ score }: { score: AdvisorObjectiveScore }) {
+  const t = useT()
+  const contributionRow = (contribution: AdvisorObjectiveContribution) => {
+    const isDisabled = toNumber(contribution.weight) === 0
+    const value = toNumber(contribution.contribution)
+    return (
+      <div
+        key={contribution.code}
+        className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border py-2 last:border-b-0"
+      >
+        <span className="flex flex-wrap items-baseline gap-2">
+          <span className="text-sm font-medium">{contribution.label}</span>
+          <span className="text-xs text-muted-foreground">
+            {t(
+              `pricing_engine.advisor.metric.${contribution.metric}`,
+              OBJECTIVE_METRIC_FALLBACK[contribution.metric],
+            )}
+          </span>
+          {isDisabled ? (
+            <Badge variant="neutral" size="sm">
+              {t('pricing_engine.advisor.objectives.disabled', 'Switched off')}
+            </Badge>
+          ) : (
+            <Badge variant="outline" size="sm">
+              {t('pricing_engine.advisor.objectives.weight', 'Weight {weight}', {
+                weight: String(toNumber(contribution.weight)),
+              })}
+            </Badge>
+          )}
+        </span>
+        <span className="flex items-baseline gap-3 font-mono text-sm">
+          <span className="text-muted-foreground">
+            {t('pricing_engine.advisor.objectives.delta', 'Moves by {delta}', {
+              delta: contribution.delta,
+            })}
+          </span>
+          <Badge variant={value > 0 ? 'success' : value < 0 ? 'error' : 'neutral'} size="sm">
+            {value > 0 ? '+' : ''}
+            {contribution.contribution}
+          </Badge>
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-overline font-semibold uppercase tracking-widest text-muted-foreground">
+          {t('pricing_engine.advisor.objectives.title', 'How this scores against your objectives')}
+        </span>
+        <span className="font-mono text-sm font-medium">
+          {t('pricing_engine.advisor.objectives.total', 'Score {total}', { total: score.total })}
+        </span>
+      </div>
+      <div className="mt-2">{score.contributions.map(contributionRow)}</div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t(
+          'pricing_engine.advisor.objectives.hint',
+          'Each objective is measured on this suggestion, scaled against the current value so a percentage point and a zloty are comparable, then weighted. A margin floor is never overridden by a weight — suggestions that would breach one are not listed at all.',
+        )}
+      </p>
+    </div>
+  )
+}
+
 export function SuggestionCard({ suggestion, currencyCode }: SuggestionCardProps) {
   const t = useT()
+  const subject = subjectLabel(suggestion)
 
   return (
     <Card>
@@ -80,6 +179,11 @@ export function SuggestionCard({ suggestion, currencyCode }: SuggestionCardProps
             </Badge>
           ) : null}
         </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {subject
+            ? `${t('pricing_engine.advisor.label.subject', 'Product')}: ${subject}`
+            : t('pricing_engine.advisor.label.subjectWholeOrder', 'Applies to the whole order')}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
@@ -121,6 +225,8 @@ export function SuggestionCard({ suggestion, currencyCode }: SuggestionCardProps
             suffix="%"
           />
         </div>
+
+        {suggestion.objectiveScore ? <ObjectiveBreakdown score={suggestion.objectiveScore} /> : null}
 
         <dl className="grid gap-3 sm:grid-cols-2">
           <div>

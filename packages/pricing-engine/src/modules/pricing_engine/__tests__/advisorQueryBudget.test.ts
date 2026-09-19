@@ -92,8 +92,14 @@ describe('advisory run query budget', () => {
     // 1 sibling-group lookup (the follow-up is skipped because no group came back) + 1 supplier
     // profile + 10 parameter queries (no customer, so the profile lookup is not issued) + 1 purchase
     // position — `loadCatalogSnapshot` falls back to that single query with catalog absent —
-    // + 1 scenario list. Every perturbation after that is priced in process.
-    expect(queries).toHaveLength(14)
+    // + 1 scenario list + 1 authorised deadstock floor lookup. Every perturbation after that is
+    // priced in process.
+    //
+    // The deadstock lookup is the one addition since this budget was first fixed. It is a single
+    // scope-filtered read of `pricing_deadstock_decisions` keyed by the basket's product ids, flat
+    // in basket size like everything else here, and it is issued unconditionally because whether a
+    // floor was authorised cannot be known without asking.
+    expect(queries).toHaveLength(15)
     expect(queries.filter((entry) => entry.endsWith('PricingSupplierProfile'))).toHaveLength(1)
   })
 
@@ -103,7 +109,7 @@ describe('advisory run query budget', () => {
 
     await advisor.advise(buildContext(), { advisor: { maxPerKind: 3 } })
 
-    expect(queries).toHaveLength(16)
+    expect(queries).toHaveLength(17)
     expect(queries).toContain('find:PricingCustomerIndicator')
   })
 

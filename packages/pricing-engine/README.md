@@ -7,7 +7,9 @@ labour, packaging, warehouse occupancy, logistics, product aspects, customer beh
 markup, guardrails, rounding — and stores every calculation with its inputs, the parameter versions
 used, and a one-sentence explanation per component that a sales representative can read to a customer.
 
-Default runtime mode is `shadow`: the engine computes and records, and invoiced prices are unchanged.
+Invoiced prices are unchanged in **every** mode — no code in this package writes a sales amount.
+`mode` (default `shadow`) is a label recorded on each calculation so an audit can tell what the
+operator believed the engine was doing at the time. Nothing in the pipeline reads it.
 
 - Spec: [`.ai/specs/2026-09-18-pricing-engine-module.md`](../../.ai/specs/2026-09-18-pricing-engine-module.md)
 - Agent guide: [`AGENTS.md`](./AGENTS.md)

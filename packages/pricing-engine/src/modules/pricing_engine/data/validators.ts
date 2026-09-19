@@ -83,6 +83,8 @@ export const coverageEntryResponseSchema = z.object({
   componentCode: z.string(),
   labelKey: z.string(),
   implemented: z.boolean(),
+  // Additive and optional: an older client ignores it and still renders the binary state.
+  pendingReason: z.enum(['awaiting_data', 'superseded']).nullable().optional(),
   sourceKind: z.string(),
   sourceRef: z.string().nullable(),
   freshnessDays: z.number().int().nullable(),
@@ -399,6 +401,171 @@ const purchasePositionShape = {
 export const purchasePositionCreateSchema = z.object(purchasePositionShape)
 export const purchasePositionUpdateSchema = z.object({ id: idField, ...purchasePositionShape })
 
+// --- customer pricing profiles ----------------------------------------------
+//
+// One row per customer (unique on tenant + organization + customer_id) holding the six fields the
+// engine reads for that customer: the group and zone codes it resolves rules by, the default
+// order scenario, and the negotiated price book with its single expiry.
+
+const nullableCode = z.string().trim().max(100).nullable().optional()
+
+// The map is keyed by CATALOG PRODUCT ID: `negotiatedUnitPrice` in `lib/params.ts` looks a line up
+// as `prices[productId]`, so a key that is not a product uuid can never be hit and is dead weight
+// that still ships to the engine on every quote. Rejecting it here is the only gate there is —
+// until this route existed the column was written by hand in SQL and nothing validated it.
+const negotiatedPriceProductId = z.string().uuid()
+
+/**
+ * `negotiatedUnitPrice` resolves a line with `prices[productId]` — an EXACT string match against
+ * the uuid Postgres renders in lowercase. A key that differs only in case, or that carries stray
+ * whitespace from a paste, passes `z.string().uuid()`, lands in the jsonb column and then never
+ * matches anything: the negotiated price exists in the database and is inert. The engine never
+ * sees the raw body, so write time is the only place that can canonicalise it.
+ */
+export function canonicalNegotiatedPriceKey(key: string): string {
+  return key.trim().toLowerCase()
+}
+
+// The whole map is read from jsonb on EVERY quote (`loadPricingParameters`), so its size is a
+// per-quote cost, not a storage cost. 500 entries is ~2.5x the 204 products in the catalogue this
+// runs against — room for a catalogue that triples without ever letting a paste turn one customer
+// row into a megabyte the engine re-parses on every line.
+const NEGOTIATED_PRICES_MAX_ENTRIES = 500
+
+// Every money column in this module is `numeric(18, 4)`, whose widest value is 14 integer digits,
+// a dot and 4 decimals = 19 characters. A longer string could not survive a round trip through the
+// rest of the pricing schema anyway, so it is a typo, not a price.
+const NEGOTIATED_PRICE_MAX_LENGTH = 19
+
+// A single regex carries the whole rule — "a non-negative decimal" — so a letter, an exponent and a
+// negative all resolve to one message instead of three. The value stays a STRING end to end: the
+// engine hands it to decimal math untouched, and a float round-trip would lose the last grosz.
+const negotiatedPriceValue = z
+  .union([z.string(), z.number()])
+  .transform((value) => String(value).trim())
+  .superRefine((value, ctx) => {
+    if (!/^\d+(\.\d+)?$/.test(value)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'pricing_engine.params.errors.negotiatedPriceInvalid',
+      })
+      return
+    }
+    if (value.length > NEGOTIATED_PRICE_MAX_LENGTH) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'pricing_engine.params.errors.negotiatedPriceTooLong',
+      })
+    }
+  })
+
+// An empty map and `null` are the SAME state to the engine — `negotiatedUnitPrice` reads
+// `customerProfile.negotiatedPrices ?? {}` and then misses on every product either way. So the
+// schema accepts both rather than forcing the form to choose, and the route canonicalises an empty
+// map to `null` on write (see `toNegotiatedPricesOrNull`) so two identically-priced customers never
+// read differently in the table. Responses go the other way and always carry an object.
+//
+// The KEY schema is deliberately permissive. Zod reports a rejected record key as ONE `invalid_key`
+// issue whose own `message` is the English "Invalid key in record" and buries the key schema's
+// message one level down, where `normalizeCrudServerError` never looks — the sales rep would read
+// untranslatable English. Validating the keys in a refinement instead puts the i18n key in
+// `issue.message` and the offending product in `issue.path`.
+export const negotiatedPricesSchema = z
+  .record(z.string(), negotiatedPriceValue)
+  .superRefine((value, ctx) => {
+    const rawKeys = Object.keys(value)
+    if (rawKeys.length > NEGOTIATED_PRICES_MAX_ENTRIES) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'pricing_engine.params.errors.negotiatedPricesTooMany',
+      })
+    }
+    const seen = new Set<string>()
+    for (const rawKey of rawKeys) {
+      const key = canonicalNegotiatedPriceKey(rawKey)
+      if (!negotiatedPriceProductId.safeParse(key).success) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [rawKey],
+          message: 'pricing_engine.params.errors.negotiatedPriceProductRequired',
+        })
+        continue
+      }
+      // Two spellings of one product would collapse into a single entry on canonicalisation and one
+      // of the two prices would vanish without a word. Which one survives is object-key order, so
+      // the only safe answer is to refuse the body.
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [rawKey],
+          message: 'pricing_engine.params.errors.negotiatedPriceDuplicate',
+        })
+        continue
+      }
+      seen.add(key)
+    }
+  })
+  .transform((value) => {
+    const canonical: Record<string, string> = {}
+    for (const [rawKey, price] of Object.entries(value)) {
+      canonical[canonicalNegotiatedPriceKey(rawKey)] = price
+    }
+    return canonical
+  })
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * "These prices expire on 31 December" means the 31st is still a trading day — the book dies at the
+ * END of that date. `lib/params.ts:223` reads the stored instant as the moment the book is ALREADY
+ * dead (`negotiatedPriceExpiresAt <= quote date`), and the tab's field is a `date` input, so a bare
+ * `2026-12-31` coerced to midnight killed every negotiated price for the whole of the 31st.
+ *
+ * A date-only value is therefore pinned to the last millisecond of that day in UTC: the 31st prices
+ * as agreed, the 1st does not. A body carrying a full timestamp is taken literally — an integration
+ * that means 00:00 keeps meaning 00:00. `23:59:59.999Z` also slices back to `2026-12-31` for
+ * `isoToDateInput`, so the date the rep typed is the date the form shows again.
+ */
+const negotiatedPriceExpiresAtSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  return DATE_ONLY_PATTERN.test(trimmed) ? `${trimmed}T23:59:59.999Z` : value
+}, z.coerce.date())
+
+const customerProfileShape = {
+  customerId: idField,
+  customerGroupCode: nullableCode,
+  deliveryZoneCode: nullableCode,
+  defaultOrderScenarioCode: nullableCode,
+  negotiatedPrices: negotiatedPricesSchema.nullable().optional(),
+  // One date wipes the WHOLE map; there is no per-product term. `validFrom`/`validTo` are absent by
+  // design — this table is not versioned, the engine reads the single current row.
+  negotiatedPriceExpiresAt: negotiatedPriceExpiresAtSchema.nullable().optional(),
+}
+
+export const customerProfileCreateSchema = z.object(customerProfileShape)
+
+/**
+ * Every field but the identity pair is optional here, which makes the update body a PATCH: a field
+ * the caller did not send must be LEFT ALONE, and a field sent as `null` must be CLEARED. Zod keeps
+ * exactly that distinction in its output — an absent optional key is absent from the parsed object,
+ * an explicit `null` is present with the value `null` — so the route branches on key presence
+ * (`applyCustomerProfileUpdate`) instead of reading `undefined` as "clear it", which used to wipe a
+ * whole negotiated price book on any partial PUT.
+ */
+export const customerProfileUpdateSchema = z.object({ id: idField, ...customerProfileShape })
+
+/** The PATCH-able columns, in the order `applyCustomerProfileUpdate` writes them. */
+export const CUSTOMER_PROFILE_PATCH_FIELDS = [
+  'customerGroupCode',
+  'deliveryZoneCode',
+  'defaultOrderScenarioCode',
+  'negotiatedPrices',
+  'negotiatedPriceExpiresAt',
+] as const
+
+export type CustomerProfilePatchField = (typeof CUSTOMER_PROFILE_PATCH_FIELDS)[number]
+
 export type PricingParamScopeValue = z.infer<typeof pricingParamScopeSchema>
 export type MarginRuleCreateInput = z.infer<typeof marginRuleCreateSchema>
 export type MarginRuleUpdateInput = z.infer<typeof marginRuleUpdateSchema>
@@ -422,3 +589,6 @@ export type WarehouseCostCreateInput = z.infer<typeof warehouseCostCreateSchema>
 export type WarehouseCostUpdateInput = z.infer<typeof warehouseCostUpdateSchema>
 export type PurchasePositionCreateInput = z.infer<typeof purchasePositionCreateSchema>
 export type PurchasePositionUpdateInput = z.infer<typeof purchasePositionUpdateSchema>
+export type NegotiatedPrices = z.infer<typeof negotiatedPricesSchema>
+export type CustomerProfileCreateInput = z.infer<typeof customerProfileCreateSchema>
+export type CustomerProfileUpdateInput = z.infer<typeof customerProfileUpdateSchema>

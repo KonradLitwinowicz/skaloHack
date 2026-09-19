@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { Page, PageBody } from '@open-mercato/ui/backend/Page'
 import { SectionHeader } from '@open-mercato/ui/backend/SectionHeader'
 import { Button } from '@open-mercato/ui/primitives/button'
@@ -35,6 +36,7 @@ import type { AdviseResponse } from '../../../lib/frontend/advisorTypes'
 import { SuggestionCard } from './SuggestionCard'
 
 const ADVISE_PATH = '/api/pricing/advise'
+const OBJECTIVES_HREF = '/backend/pricing/params/objectives'
 
 const ORDER_SCENARIOS = [
   'ideal_file',
@@ -139,6 +141,11 @@ export default function PricingAdvisorPage() {
 
   const baseline = result?.baseline ?? null
   const currencyCode = baseline?.currencyCode ?? ''
+  // The list is ordered by the operator's own objectives whenever any are configured for this
+  // scope; saying so is the difference between a ranking and an unexplained order.
+  const isObjectiveRanked = (result?.suggestions ?? []).some(
+    (suggestion) => suggestion.objectiveScore !== null,
+  )
   const basket = React.useMemo(
     () =>
       basketMargin(
@@ -252,6 +259,20 @@ export default function PricingAdvisorPage() {
                 title={t('pricing_engine.advisor.section.suggestions', 'Ways to give a better price')}
                 count={result?.suggestions.length ?? 0}
               />
+              <p className="text-sm text-muted-foreground">
+                {isObjectiveRanked
+                  ? t(
+                      'pricing_engine.advisor.section.suggestionsRankedByObjectives',
+                      'Ordered by your objectives and weights. Each card shows what every objective contributed.',
+                    )
+                  : t(
+                      'pricing_engine.advisor.section.suggestionsUnranked',
+                      'No objectives are configured for this customer or product, so the suggestions are listed in the order they were found. Set objectives and weights to rank them.',
+                    )}{' '}
+                <Link className="underline" href={OBJECTIVES_HREF}>
+                  {t('pricing_engine.advisor.action.manageObjectives', 'Objectives and weights')}
+                </Link>
+              </p>
               {(result?.suggestions.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {t(

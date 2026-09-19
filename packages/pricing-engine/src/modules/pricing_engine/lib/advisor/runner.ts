@@ -14,7 +14,14 @@ import {
   profitNeutralUnitPrice,
   unitProfit,
 } from './margin'
-import type { AdvisorOptions, Suggestion, SuggestionChange, SuggestionKind } from './schemas'
+import { measureObjectiveMetrics, resolveObjectives, scoreObjectives } from './objectives'
+import type {
+  AdvisorOptions,
+  Suggestion,
+  SuggestionChange,
+  SuggestionKind,
+  SuggestionSubject,
+} from './schemas'
 
 export const DEFAULT_MAX_PER_KIND = 1
 
@@ -107,6 +114,86 @@ export type SuggestionDraft = {
   extraVariantLines?: PipelineRunResult[]
 }
 
+// `change.productId` is not a subject: `order_channel_change` and `basket_consolidation` both set it
+// to the highest-value line merely as an anchor for the before/after arithmetic, while the change
+// they describe applies to the whole order. Presence of an id therefore cannot decide this — the
+// kind must, and it is spelled out rather than inferred.
+const WHOLE_ORDER_KINDS: SuggestionKind[] = ['order_channel_change', 'basket_consolidation']
+
+/**
+ * Which product the card is about. A card titled "Round up to a whole pack" over a five-line basket
+ * is unactionable without it, and the change payload carries only an id — the rep needs the name.
+ * Null for suggestions that act on the whole order, because naming one line there would be a lie.
+ */
+function resolveSubject(run: AdvisorRun, draft: SuggestionDraft): SuggestionSubject | null {
+  if (WHOLE_ORDER_KINDS.includes(draft.code)) return null
+  const productId = draft.change.toProductId ?? draft.change.productId ?? null
+  if (!productId) return null
+  const product = run.inputs.catalog.byProductId.get(productId) ?? null
+  return {
+    productId,
+    sku: product?.sku ?? draft.variantLine.line.sku ?? null,
+    title: product?.title ?? null,
+  }
+}
+
+/** Two kinds proposing the same move are one move. Identity is the change, never the kind. */
+function changeIdentity(suggestion: Suggestion): string {
+  const { productId, fromQuantity, toQuantity, toProductId, toOrderScenarioCode } = suggestion.change
+  return [productId, fromQuantity, toQuantity, toProductId, toOrderScenarioCode]
+    .map((part) => part ?? '')
+    .join('|')
+}
+
+/**
+ * Only line-level moves can collide. `basket_consolidation` emits one suggestion per basket in
+ * `consolidateWith` and records nothing in `change` that tells them apart, so collapsing on that
+ * payload would silently drop four of five merge options — deduplication must not become deletion.
+ */
+function isDeduplicable(suggestion: Suggestion): boolean {
+  return Boolean(suggestion.change.toQuantity || suggestion.change.toProductId)
+}
+
+// When two kinds land on the same quantity, the pack-rounding card wins: it names the carton or
+// pallet being filled, so it explains the identical action strictly better than a bare "order more".
+const IDENTICAL_CHANGE_PRIORITY: SuggestionKind[] = [
+  'full_pack_rounding',
+  'volume_threshold',
+  'cheaper_equivalent',
+  'basket_consolidation',
+  'order_channel_change',
+]
+
+function kindPriority(kind: SuggestionKind): number {
+  const index = IDENTICAL_CHANGE_PRIORITY.indexOf(kind)
+  return index === -1 ? IDENTICAL_CHANGE_PRIORITY.length : index
+}
+
+/**
+ * Collapses suggestions that describe the same change across different kinds. `maxPerKind` caps
+ * only within one kind, so without this the screen counted one action as several — and a count
+ * nobody can reconcile with the cards below it is worse than no count.
+ */
+export function dedupeByChange(suggestions: Suggestion[]): Suggestion[] {
+  const winners = new Map<string, Suggestion>()
+  const slots: Array<string | Suggestion> = []
+  for (const suggestion of suggestions) {
+    if (!isDeduplicable(suggestion)) {
+      slots.push(suggestion)
+      continue
+    }
+    const identity = changeIdentity(suggestion)
+    const incumbent = winners.get(identity)
+    if (!incumbent) {
+      winners.set(identity, suggestion)
+      slots.push(identity)
+      continue
+    }
+    if (kindPriority(suggestion.code) < kindPriority(incumbent.code)) winners.set(identity, suggestion)
+  }
+  return slots.map((slot) => (typeof slot === 'string' ? (winners.get(slot) as Suggestion) : slot))
+}
+
 /**
  * Turns a before/after pair of pipeline runs into the both-sides figures the advisor promises.
  * `extraBaselineLines` exists for consolidation, where "before" is two separate baskets rather than
@@ -126,9 +213,31 @@ export function buildSuggestion(run: AdvisorRun, draft: SuggestionDraft): Sugges
   const minMargin = resolveMinMarginPercent(run, draft.variantLine.line)
   const floor = minMargin ? minPriceForMargin(costAfter, minMargin.value) : null
 
+  // Scored here rather than in the service because this is the only place both priced runs are
+  // still in hand: downstream a suggestion is a flat record of formatted strings.
+  const subjectProductId = draft.variantLine.line.productId
+  const objectives = resolveObjectives(run.inputs.params, {
+    productId: subjectProductId,
+    productGroupCode: run.inputs.catalog.byProductId.get(subjectProductId)?.productGroupCode ?? null,
+    customerId: run.context.customerId ?? null,
+    customerGroupCode: run.context.customerGroupCode ?? null,
+  })
+  const objectiveScore = scoreObjectives(
+    objectives,
+    measureObjectiveMetrics({
+      anchorLine: draft.anchorLine,
+      variantLine: draft.variantLine,
+      beforeRuns,
+      afterRuns,
+      basketProfitBefore: basketBefore,
+      basketProfitAfter: basketAfter,
+    }),
+  )
+
   return {
     code: draft.code,
     titleKey: suggestionTitleKey(draft.code),
+    subject: resolveSubject(run, draft),
     explainKey: draft.explainKey,
     explainValues: {
       ...draft.explainValues,
@@ -150,6 +259,7 @@ export function buildSuggestion(run: AdvisorRun, draft: SuggestionDraft): Sugges
     guardrailFloorUnitPrice: floor === null ? null : money(floor),
     confidence: draft.confidence ?? weakestConfidence(draft.variantLine),
     raisesCustomerPrice: priceAfter > priceBefore,
+    objectiveScore,
   }
 }
 

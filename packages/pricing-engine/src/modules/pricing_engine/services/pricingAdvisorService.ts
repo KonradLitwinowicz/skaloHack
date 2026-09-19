@@ -8,6 +8,8 @@ import { generateFullPackRoundingSuggestions } from '../lib/advisor/suggestions/
 import { generateOrderChannelChangeSuggestions } from '../lib/advisor/suggestions/orderChannelChange'
 import { generateVolumeThresholdSuggestions } from '../lib/advisor/suggestions/volumeThreshold'
 import { computeVolumeSensitivity } from '../lib/advisor/volumeSensitivity'
+import { dedupeByChange } from '../lib/advisor/runner'
+import { rankByObjectives } from '../lib/advisor/objectives'
 import type { AdvisorRun, BasketOverrides } from '../lib/advisor/runner'
 import type {
   AdvisorOptions,
@@ -19,6 +21,7 @@ import type {
 import type { PricingBasketLine, PricingContext, PricingQuoteResult } from '../lib/types'
 import {
   loadPricingInputs,
+  variantIdsByProduct,
   priceWithInputs,
   resolveEffectiveContext,
   type PriceOverrides,
@@ -152,6 +155,7 @@ export function createPricingAdvisorService(deps: {
           customerId: context.customerId ?? null,
         },
         Array.from(new Set([...basketProductIds, ...consolidationProductIds, ...siblingProductIds])),
+        variantIdsByProduct(context.lines),
       )
 
       const effectiveContext = resolveEffectiveContext(context, inputs, overrides)
@@ -196,9 +200,15 @@ export function createPricingAdvisorService(deps: {
         durationMs: Date.now() - startedAt,
       }
 
+      // Order matters. Deduplicate first so one action is counted once; drop anything that breaches
+      // a margin floor before scoring, so no weighting can promote an illegal price; rank last,
+      // across kinds, by what the operator said matters. With no objectives configured the ranking
+      // is a no-op and the generators' own order survives intact.
+      const deduped = dedupeByChange(generated.flat())
+
       return {
         baseline,
-        suggestions: generated.flat(),
+        suggestions: rankByObjectives(deduped),
         volumeSensitivity: sensitivities.filter((entry): entry is VolumeSensitivity => entry !== null),
         marginFloors: computeMarginFloors(run),
         purchasingInsights: computePurchasingInsights(run),

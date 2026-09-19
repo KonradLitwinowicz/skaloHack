@@ -98,21 +98,30 @@ async function seedParameterRows(em: EntityManager, scope: Scope): Promise<void>
     }
   }
 
-  const existingScenarios = await em.count(PricingOrderScenario, { ...scope, deletedAt: null })
-  if (existingScenarios === 0) {
-    for (const scenario of DEMO_ORDER_SCENARIOS) {
-      em.persist(
-        em.create(PricingOrderScenario, {
-          ...scope,
-          code: scenario.code,
-          label: scenario.label,
-          stepMultipliers: { ...scenario.stepMultipliers },
-          extraStepCodes: [...scenario.extraStepCodes],
-          validFrom: EPOCH,
-          isDemo: true,
-        }),
-      )
-    }
+  // Probed per code, not on an empty table: a tenant seeded before a scenario existed has to pick
+  // the new one up on its next run, which a `count === 0` gate can never do.
+  //
+  // The probe deliberately does NOT filter `deletedAt: null`. A soft-deleted scenario is an
+  // operator's decision that this way of ordering is not offered here, and a probe over live rows
+  // only would resurrect it on every seed run. Seeding is additive; it never undoes a deletion.
+  const seededScenarioRows = await em.find(PricingOrderScenario, {
+    ...scope,
+    code: { $in: DEMO_ORDER_SCENARIOS.map((scenario) => scenario.code) },
+  })
+  const knownScenarioCodes = new Set<string>(seededScenarioRows.map((row) => row.code))
+  for (const scenario of DEMO_ORDER_SCENARIOS) {
+    if (knownScenarioCodes.has(scenario.code)) continue
+    em.persist(
+      em.create(PricingOrderScenario, {
+        ...scope,
+        code: scenario.code,
+        label: scenario.label,
+        stepMultipliers: { ...scenario.stepMultipliers },
+        extraStepCodes: [...scenario.extraStepCodes],
+        validFrom: EPOCH,
+        isDemo: true,
+      }),
+    )
   }
 
   const existingGuardrails = await em.count(PricingGuardrail, { ...scope, deletedAt: null })
@@ -219,10 +228,16 @@ async function seedDemoPurchasePositions(
   const now = new Date()
   for (let index = 0; index < products.length; index += 1) {
     const product = products[index] as { id: string; sku?: string | null }
+
+    // The probe asks "was this product already considered here?", not "does it have a live
+    // position?", so it deliberately does NOT filter `deletedAt: null` — the same rule the order
+    // scenario probe above follows. A soft-deleted position is a decision (an operator's delete, or
+    // the HoReCa seeder retiring a demo cost that landed on a sneaker); a probe over live rows only
+    // would undo that decision on every seed run. Seeding is additive; it never resurrects.
+    // `purge-demo` hard-deletes through `nativeDelete`, so it remains the way to get demo rows back.
     const existing = await em.findOne(PricingPurchasePosition, {
       ...scope,
       catalogProductId: product.id,
-      deletedAt: null,
     })
     if (existing) continue
 

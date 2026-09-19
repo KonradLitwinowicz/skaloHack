@@ -37,6 +37,15 @@ export const features = [
     dependsOn: ['pricing.params.write'],
   },
   {
+    // Recording a judgement about dormant stock is a commercial decision, not a parameter change:
+    // it removes a product from everyone else's worklist. Separate from `pricing.params.write` so
+    // it can be granted to the people who actually sell the goods.
+    id: 'pricing.deadstock.decide',
+    title: 'Decide on deadstock positions',
+    module: 'pricing_engine',
+    dependsOn: ['pricing.view'],
+  },
+  {
     id: 'pricing.mode.change',
     title: 'Change pricing mode',
     module: 'pricing_engine',

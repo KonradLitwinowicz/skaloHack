@@ -6,6 +6,7 @@ import type {
   PriceComponent,
   PricingConfidence,
 } from '../types'
+import { readWeightKilograms } from './weight'
 
 export const PRODUCT_ASPECTS_CODE = 'product_aspects'
 
@@ -24,14 +25,6 @@ export const DEFAULT_OVERSIZE_FACTOR = '1.0600'
 export const HEAVY_ASPECT_CODE = 'heavy'
 export const OVERSIZE_ASPECT_CODE = 'oversize'
 export const PRODUCT_GROUP_ASPECT_CODE = 'product_group'
-
-const WEIGHT_UNIT_TO_KILOGRAM: Record<string, string> = {
-  kg: '1',
-  dag: '0.01',
-  g: '0.001',
-  t: '1000',
-  lb: '0.45359237',
-}
 
 const LENGTH_UNIT_TO_METRE: Record<string, string> = {
   m: '1',
@@ -59,11 +52,6 @@ type AspectHit = {
   factor: Decimal
 }
 
-type WeightReading = {
-  kilograms: Decimal | null
-  unitRecognized: boolean
-}
-
 type VolumeReading = {
   cubicMetres: Decimal | null
   unitRecognized: boolean
@@ -84,16 +72,6 @@ function readNumericField(source: Record<string, unknown> | null, key: string): 
 function readUnitField(source: Record<string, unknown> | null, key: string): string | null {
   const raw = source?.[key]
   return typeof raw === 'string' && raw.trim() !== '' ? raw.trim().toLowerCase() : null
-}
-
-function readWeightKilograms(weightValue: string | null, weightUnit: string | null): WeightReading {
-  if (weightValue === null || weightValue.trim() === '') return { kilograms: null, unitRecognized: true }
-  // A null unit on a Polish distributor's catalog row is kilograms; that convention is recorded in
-  // `inputs.weightUnit` so a reader can see what was assumed rather than having to infer it.
-  const unit = (weightUnit ?? 'kg').trim().toLowerCase()
-  const conversion = WEIGHT_UNIT_TO_KILOGRAM[unit]
-  if (!conversion) return { kilograms: null, unitRecognized: false }
-  return { kilograms: mul(toDecimal(weightValue), toDecimal(conversion)), unitRecognized: true }
 }
 
 function readVolumeCubicMetres(dimensions: Record<string, unknown> | null): VolumeReading {

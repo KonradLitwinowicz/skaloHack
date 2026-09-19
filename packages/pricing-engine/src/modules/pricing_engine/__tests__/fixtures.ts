@@ -6,9 +6,12 @@ import type {
   LaborRateSnapshot,
   OrderScenarioSnapshot,
   PackagingCostSnapshot,
+  InventorySnapshot,
   ParameterLookup,
   PricingContext,
   ProcessStepSnapshot,
+  ProductLotSnapshot,
+  ProductRotation,
   SupplierSnapshot,
   VehicleSnapshot,
   WarehouseCostSnapshot,
@@ -19,8 +22,10 @@ import {
   DEMO_OVERHEAD_RATE,
   DEMO_PROCESS_STEPS,
 } from '../lib/seedDefaults'
+import type { AuthorisedDeadstockFloors } from '../lib/deadstock/authorisedFloor'
 
 export const PRODUCT_ID = '11111111-1111-4111-8111-111111111111'
+export const VARIANT_ID = '77777777-7777-4777-8777-777777777777'
 export const CUSTOMER_ID = '22222222-2222-4222-8222-222222222222'
 export const QUOTE_DATE = new Date('2026-06-15T10:00:00.000Z')
 
@@ -207,12 +212,70 @@ export function buildLookup(overrides: LookupOverrides = {}): ParameterLookup {
   }
 }
 
+export function buildRotation(overrides: Partial<ProductRotation> = {}): ProductRotation {
+  return {
+    productId: PRODUCT_ID,
+    variantIds: [VARIANT_ID],
+    onHandQuantity: '0.0000',
+    issuedQuantity: '0.0000',
+    observedDays: 0,
+    dailyIssueRate: '0.0000',
+    coverDays: null,
+    source: 'no_movements',
+    ...overrides,
+  }
+}
+
+export function buildLot(overrides: Partial<ProductLotSnapshot> = {}): ProductLotSnapshot {
+  return {
+    lotId: '66666666-6666-4666-8666-666666666666',
+    lotNumber: 'L-CHEM-0001',
+    status: 'available',
+    manufacturedAt: null,
+    bestBeforeAt: null,
+    expiresAt: null,
+    quantityAvailable: '0.0000',
+    ...overrides,
+  }
+}
+
+/**
+ * Inventory defaults to ABSENT, not to an empty snapshot: the golden pipeline case must keep
+ * pricing exactly as it did before stock entered the model, and a test that wants lots or a
+ * measured rotation has to ask for them.
+ */
+export function buildInventory(overrides: {
+  lots?: ProductLotSnapshot[]
+  rotation?: Partial<ProductRotation>
+  trackExpiration?: boolean
+} = {}): InventorySnapshot {
+  return {
+    byProductId: new Map([
+      [
+        PRODUCT_ID,
+        {
+          productId: PRODUCT_ID,
+          variantIds: [VARIANT_ID],
+          trackExpiration: overrides.trackExpiration ?? true,
+          defaultStrategy: 'fefo',
+          lots: overrides.lots ?? [],
+          rotation: buildRotation(overrides.rotation),
+        },
+      ],
+    ]),
+    rotationWindowDays: 180,
+    available: true,
+  }
+}
+
 export function buildDeps(
   overrides: {
     supplier?: Partial<SupplierSnapshot>
     product?: Partial<CatalogProductSnapshot>
     lookup?: LookupOverrides
     allocation?: string[]
+    inventory?: InventorySnapshot
+    deadstock?: AuthorisedDeadstockFloors
   } = {},
 ): ComponentDeps {
   const product = buildProduct(overrides.product)
@@ -222,6 +285,8 @@ export function buildDeps(
     catalog: { byProductId: new Map([[product.productId, product]]) },
     indicators: { byCode: new Map() },
     allocation: { shareByLineIndex: overrides.allocation ?? ['1.0000'] },
+    inventory: overrides.inventory,
+    deadstock: overrides.deadstock,
   }
 }
 
