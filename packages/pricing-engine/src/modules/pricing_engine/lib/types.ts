@@ -287,6 +287,10 @@ export type ComponentComputeArgs = {
   // running total of all of them, which is the wrong base for anything that needs one specific
   // earlier figure — frozen capital finances the goods, not the labour not yet spent on them.
   componentValues: Readonly<Record<string, string>>
+  // Full results of the components already run on this line, in order. Optional so callers that
+  // compute a single component in isolation keep working; `rounding` reads the guardrail's floor
+  // from here so it can never round a clamped price back under it.
+  priorResults?: ReadonlyArray<ComponentResult>
   deps: ComponentDeps
 }
 

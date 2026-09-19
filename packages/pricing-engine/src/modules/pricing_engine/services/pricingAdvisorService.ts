@@ -200,10 +200,11 @@ export function createPricingAdvisorService(deps: {
         durationMs: Date.now() - startedAt,
       }
 
-      // Order matters. Deduplicate first so one action is counted once; drop anything that breaches
-      // a margin floor before scoring, so no weighting can promote an illegal price; rank last,
-      // across kinds, by what the operator said matters. With no objectives configured the ranking
-      // is a no-op and the generators' own order survives intact.
+      // Order matters. Deduplicate first so one action is counted once, then rank across kinds by
+      // what the operator said matters. There is no separate margin-floor filter: every variant was
+      // priced through the full pipeline, guardrails included, so no suggestion can carry a price
+      // the floors would reject (see `lib/advisor/objectives.ts`). With no objectives configured the
+      // ranking is a no-op and the generators' own order survives intact.
       const deduped = dedupeByChange(generated.flat())
 
       return {
