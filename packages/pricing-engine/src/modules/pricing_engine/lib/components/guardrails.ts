@@ -58,18 +58,6 @@ export function minPriceForMargin(unitCostNet: Decimal, minMarginPercent: string
   return div(unitCostNet, denominator)
 }
 
-/**
- * The lowest price a negotiated price may reach: the engine's own target less `max_discount_percent`.
- * Returns null when no cap is configured or the cap is outside (0, 100), where it cannot bound a
- * positive price.
- */
-export function maxDiscountFloor(targetUnitPrice: Decimal, maxDiscountPercent: string | null): Decimal | null {
-  if (maxDiscountPercent === null) return null
-  const discount = percentToFactor(maxDiscountPercent)
-  if (discount <= ZERO || discount >= ONE) return null
-  return mul(targetUnitPrice, sub(ONE, discount))
-}
-
 type NormalFloorResult = {
   price: Decimal
   applied: string | null
@@ -175,16 +163,11 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
     applied = 'negotiated_price'
   }
 
-  // The discount cap bounds only a negotiated price: it is the one place a person, not the engine,
-  // sets the number, so it is the one place a discount beyond policy can enter. It is applied below
-  // only when no expiry ladder or deadstock floor is open — those markdowns are a permission to go
-  // deeper than policy, governed by their own floors, and the cap must not take it back.
-  const discountFloor = negotiatedApplied
-    ? maxDiscountFloor(runningUnitValue, guardrail?.maxDiscountPercent ?? null)
-    : null
-  const cappedTarget = discountFloor !== null && target < discountFloor ? discountFloor : target
-
-  const normal = applyNormalFloors(cappedTarget, guardrail, unitCostNet)
+  // `max_discount_percent` is recorded and echoed in `params` but deliberately NOT enforced (owner
+  // decision 2026-09-19): a hard cap silently overrode legitimate negotiated prices — strategic
+  // customers, competitor matching, a customer's historical price. The minimum margin below stays
+  // the hard floor. See `.ai/handoff/2026-09-19-pricing-engine-guardrail-gaps.md`.
+  const normal = applyNormalFloors(target, guardrail, unitCostNet)
   const ladder = resolveLadder(args, normal.price)
   // Authorised on the deadstock screen by a person, never inferred here. See `authorisedFloor.ts`.
   const authorised: AuthorisedDeadstockFloor | null =
@@ -204,22 +187,15 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   // commonest case by far is the third and fourth here, an ordinary floor raising a price with no
   // ladder open at all.
   let floorReport: {
-    source: 'shelf_life' | 'deadstock' | 'min_margin' | 'floor_price' | 'max_discount'
+    source: 'shelf_life' | 'deadstock' | 'min_margin' | 'floor_price'
     unitPrice: Decimal
   } | null = null
 
-  const discountCapped = effective === null && cappedTarget > target
   if (effective === null) {
-    if (discountCapped) {
-      applied = 'max_discount'
-      warnings.push('pricing_engine.warnings.maxDiscountEnforced')
-    }
     target = normal.price
     applied = normal.applied ?? applied
     if (normal.applied === 'min_margin' || normal.applied === 'floor_price') {
       floorReport = { source: normal.applied, unitPrice: normal.price }
-    } else if (discountCapped && discountFloor !== null) {
-      floorReport = { source: 'max_discount', unitPrice: discountFloor }
     }
     if (normal.minMarginEnforced) warnings.push('pricing_engine.warnings.minMarginEnforced')
   } else {
@@ -256,7 +232,6 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   // runs after this component and must not round below any of them; nor may the 4dp serialisation
   // of `factor` leave the price a fraction of a grosz under the floor it was clamped to.
   const floorCandidates: Decimal[] = []
-  if (effective === null && discountFloor !== null) floorCandidates.push(discountFloor)
   if (effective !== null) {
     floorCandidates.push(effective.floor)
   } else if (guardrail) {
@@ -313,7 +288,6 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
       maxDiscountPercent: guardrail?.maxDiscountPercent ?? null,
       floorPrice: guardrail?.floorPrice ?? null,
       negotiatedPricePrecedence: guardrail?.negotiatedPricePrecedence ?? null,
-      ...(discountFloor !== null && effective === null ? { maxDiscountFloorUnitPrice: money(discountFloor) } : {}),
       ...(roundingFloor !== null ? { roundingFloorUnitPrice: money(roundingFloor) } : {}),
       // Scalars only: the assumptions panel renders this map as dt/dd pairs, so the lot-by-lot
       // detail goes to `inputs` and the headline figures stay readable here.

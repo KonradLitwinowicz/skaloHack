@@ -50,9 +50,10 @@ B2B distribution. Spec: [`.ai/specs/2026-09-18-pricing-engine-module.md`](../../
   — no entity, no migration. Never add a "guardrail beats weights" filter there: every suggestion is
   priced by the full pipeline and is legal by construction, and a filter re-deriving the floor from
   `min_margin` alone would delete exactly the suggestions on expiring stock.
-- `max_discount_percent` caps a **negotiated** price only (raised to target × (1 − cap)), and only
-  while no expiry ladder or deadstock floor is open — those markdowns may go deeper. The engine's own
-  price is never capped. Owner decision; see `.ai/handoff/2026-09-19-pricing-engine-guardrail-gaps.md`.
+- `max_discount_percent` is **recorded and echoed, never enforced** (owner decision 2026-09-19, reversing
+  the cap briefly shipped in PR #1). A hard cap silently overrode legitimate negotiated prices; the
+  minimum margin is the only hard floor on a negotiated price. Do not re-enable it without asking —
+  see `.ai/handoff/2026-09-19-pricing-engine-guardrail-gaps.md`.
 - `rounding` must never land below a guardrail floor. `guardrails.ts` publishes the binding floor as
   `params.roundingFloorUnitPrice` (even when it did not move the price) and `rounding.ts` reads it via
   `args.priorResults`, rounding UP onto the grid when needed. Any new floor goes into that maximum.
