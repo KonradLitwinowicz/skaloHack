@@ -99,17 +99,6 @@ const FLOOR_PRICE_GUARDRAIL: GuardrailSnapshot = {
   negotiatedPricePrecedence: 'negotiated_wins',
 }
 
-// The fixture's default guardrail with the discount cap removed. The cases below that are about the
-// minimum-margin floor use it, so a 25% cap on negotiated prices does not bind first and hide it.
-const NO_CAP_GUARDRAIL: GuardrailSnapshot = {
-  code: 'default',
-  minMarginPercent: '8.0000',
-  maxDiscountPercent: null,
-  floorPrice: null,
-  rounding: null,
-  negotiatedPricePrecedence: 'negotiated_wins',
-}
-
 const MS_PER_DAY = 86_400_000
 const MARGIN_UNDEFINED = 'pricing_engine.customerPricingImpact.margin.undefinedAtNonPositivePrice'
 
@@ -140,7 +129,6 @@ describe('customer pricing impact preview', () => {
   })
 
   it('shows a below-floor price being raised, with the engine warning that says so', async () => {
-    setInputs({ lookup: { guardrail: NO_CAP_GUARDRAIL } })
     const { status, body } = await callRoute({ proposedUnitPriceNet: '5' })
 
     expect(status).toBe(200)
@@ -162,7 +150,6 @@ describe('customer pricing impact preview', () => {
   })
 
   it('reports the margin at the typed price and the margin at the price actually applied', async () => {
-    setInputs({ lookup: { guardrail: NO_CAP_GUARDRAIL } })
     const { body } = await callRoute({ proposedUnitPriceNet: '5' })
 
     const cost = toDecimal(body.unitCostNet ?? '0')
@@ -171,7 +158,7 @@ describe('customer pricing impact preview', () => {
     expect(toDecimal(body.proposedPrice?.marginOnPricePercent ?? '0') < toDecimal('0')).toBe(true)
     // At or just above 8.0000, never under it: `rounding` runs after the guardrail but rounds UP
     // onto the grosz grid when rounding to nearest would breach the floor. The preview reports what
-    // the engine will really quote, and that quote now always holds the configured minimum.
+    // the engine will really quote, and that quote always holds the configured minimum.
     expect(body.appliedPrice?.marginOnPricePercent).toBe('8.0266')
     // Margin is on the price, markup is on the cost, and they must not be equal at a real price.
     expect(body.appliedPrice?.markupOnCostPercent).not.toBe(body.appliedPrice?.marginOnPricePercent)
@@ -294,14 +281,8 @@ describe('customer pricing impact preview', () => {
   })
 
   it('names the floor it measured, so the screen does not have to guess which one bound the price', async () => {
-    setInputs({ lookup: { guardrail: NO_CAP_GUARDRAIL } })
     const minMargin = await callRoute({ proposedUnitPriceNet: '5' })
     expect(minMargin.body.floor?.source).toBe('min_margin')
-
-    // With the fixture's 25% cap the negotiated price stops at the engine price less 25% first.
-    setInputs()
-    const maxDiscount = await callRoute({ proposedUnitPriceNet: '5' })
-    expect(maxDiscount.body.floor?.source).toBe('max_discount')
 
     setInputs({ lookup: { guardrail: FLOOR_PRICE_GUARDRAIL } })
     const floorPrice = await callRoute({ proposedUnitPriceNet: '5' })
@@ -311,18 +292,6 @@ describe('customer pricing impact preview', () => {
     setInputs({ lookup: { guardrail: null } })
     const none = await callRoute({ proposedUnitPriceNet: '5' })
     expect(none.body.floor?.source).toBeNull()
-  })
-
-  it('raises a negotiated price that exceeds the maximum discount to the cap, and says so', async () => {
-    const { body } = await callRoute({ proposedUnitPriceNet: '5' })
-
-    expect(body.appliedPrice?.raisedFromProposedPrice).toBe(true)
-    expect(body.warnings).toContain('pricing_engine.warnings.maxDiscountEnforced')
-    expect(body.floor?.source).toBe('max_discount')
-    // 25% below the engine price: the applied price is three quarters of it, to the grosz.
-    const engine = Number(body.enginePrice?.unitPriceNet ?? '0')
-    expect(Number(body.appliedPrice?.unitPriceNet ?? '0')).toBeCloseTo(engine * 0.75, 1)
-    expect(Number(body.appliedPrice?.unitPriceNet ?? '0')).toBeGreaterThanOrEqual(engine * 0.75)
   })
 
   it('refuses to call a margin zero at a price that is not positive', async () => {

@@ -129,7 +129,7 @@ export const MARKUP_UNDEFINED_AT_NON_POSITIVE_COST =
  * Listed rather than validated as an enum: a source the engine adds tomorrow must reach the screen
  * as an unrecognised label, not as a 500 from this route's own response parser.
  */
-export const FLOOR_SOURCES = ['shelf_life', 'deadstock', 'min_margin', 'floor_price', 'max_discount'] as const
+export const FLOOR_SOURCES = ['shelf_life', 'deadstock', 'min_margin', 'floor_price'] as const
 export type FloorSource = (typeof FLOOR_SOURCES)[number]
 
 const priceRatiosSchema = z.object({

@@ -1,4 +1,4 @@
-import { guardrailsComponent, maxDiscountFloor } from '../lib/components/guardrails'
+import { guardrailsComponent } from '../lib/components/guardrails'
 import { roundingComponent } from '../lib/components/rounding'
 import { productAspectsComponent } from '../lib/components/productAspects'
 import { toDecimal, ZERO } from '../lib/decimal'
@@ -20,15 +20,6 @@ function args(overrides: Parameters<typeof buildDeps>[0] = {}, extra: Record<str
   }
 }
 
-const DEFAULT_GUARDRAIL = {
-  code: 'default',
-  minMarginPercent: '8.0000',
-  maxDiscountPercent: '25.0000',
-  floorPrice: null,
-  rounding: null,
-  negotiatedPricePrecedence: 'negotiated_wins' as const,
-}
-
 function guardrailWithFloor(roundingFloorUnitPrice: string): ComponentResult {
   return {
     code: 'guardrails',
@@ -43,74 +34,8 @@ function guardrailWithFloor(roundingFloorUnitPrice: string): ComponentResult {
   }
 }
 
-describe('maximum discount on a negotiated price', () => {
-  it('computes the floor as the target less the cap', () => {
-    expect(maxDiscountFloor(toDecimal('166'), '25.0000')).toBe(toDecimal('124.5'))
-    expect(maxDiscountFloor(toDecimal('166'), null)).toBeNull()
-    expect(maxDiscountFloor(toDecimal('166'), '0')).toBeNull()
-    expect(maxDiscountFloor(toDecimal('166'), '100')).toBeNull()
-  })
-
-  it('raises a negotiated price that undercuts the target by more than the cap', async () => {
-    const result = await guardrailsComponent.compute({
-      ...args({ lookup: { negotiatedPrices: { [PRODUCT_ID]: '100.0000' } } }),
-      runningUnitValue: toDecimal('166'),
-      unitCostNet: toDecimal('50'),
-    })
-    expect(result.explainKey).toBe('pricing_engine.components.guardrails.explain.max_discount')
-    expect(result.explainValues.priceAfter).toBe('124.5000')
-    expect(result.warnings).toContain('pricing_engine.warnings.maxDiscountEnforced')
-    expect(result.params.maxDiscountFloorUnitPrice).toBe('124.5000')
-    expect(result.params.effectiveFloorSource).toBe('max_discount')
-  })
-
-  it('leaves a negotiated price inside the cap untouched', async () => {
-    const result = await guardrailsComponent.compute({
-      ...args({ lookup: { negotiatedPrices: { [PRODUCT_ID]: '150.0000' } } }),
-      runningUnitValue: toDecimal('166'),
-      unitCostNet: toDecimal('50'),
-    })
-    expect(result.explainKey).toBe('pricing_engine.components.guardrails.explain.negotiated_price')
-    expect(result.explainValues.priceAfter).toBe('150.0000')
-    expect(result.warnings).not.toContain('pricing_engine.warnings.maxDiscountEnforced')
-  })
-
-  it('still lets the minimum margin win when it sits above the discount floor', async () => {
-    const result = await guardrailsComponent.compute({
-      ...args({ lookup: { negotiatedPrices: { [PRODUCT_ID]: '100.0000' } } }),
-      runningUnitValue: toDecimal('166'),
-      unitCostNet: toDecimal('120'),
-    })
-    // discount floor 124.50 < min-margin floor 120 / 0.92 = 130.4348
-    expect(result.explainKey).toBe('pricing_engine.components.guardrails.explain.min_margin')
-    expect(Number(result.explainValues.priceAfter)).toBeCloseTo(130.4348, 3)
-  })
-
-  it('does not cap a negotiated price when no maximum discount is configured', async () => {
-    const result = await guardrailsComponent.compute({
-      ...args({
-        lookup: {
-          guardrail: { ...DEFAULT_GUARDRAIL, maxDiscountPercent: null },
-          negotiatedPrices: { [PRODUCT_ID]: '100.0000' },
-        },
-      }),
-      runningUnitValue: toDecimal('166'),
-      unitCostNet: toDecimal('50'),
-    })
-    expect(result.explainValues.priceAfter).toBe('100.0000')
-  })
-
-  it('does not cap the engine’s own price when nothing was negotiated', async () => {
-    const result = await guardrailsComponent.compute({
-      ...args(),
-      runningUnitValue: toDecimal('166'),
-      unitCostNet: toDecimal('100'),
-    })
-    expect(result.params.maxDiscountFloorUnitPrice).toBeUndefined()
-    expect(result.value).toBe('1.0000')
-  })
-
-  it('reports the binding floor for rounding even when no floor moved the price', async () => {
+describe('guardrail floor reported to rounding', () => {
+  it('reports the binding floor even when no floor moved the price', async () => {
     const result = await guardrailsComponent.compute({
       ...args(),
       runningUnitValue: toDecimal('166'),
@@ -118,6 +43,19 @@ describe('maximum discount on a negotiated price', () => {
     })
     // min-margin floor 100 / 0.92 = 108.6957; the price is above it, so nothing clamps
     expect(Number(result.params.roundingFloorUnitPrice)).toBeCloseTo(108.6957, 3)
+  })
+
+  it('does not cap a negotiated price by max_discount_percent (recorded, not enforced)', async () => {
+    const result = await guardrailsComponent.compute({
+      ...args({ lookup: { negotiatedPrices: { [PRODUCT_ID]: '100.0000' } } }),
+      runningUnitValue: toDecimal('166'),
+      unitCostNet: toDecimal('50'),
+    })
+    // 100 is 40% below 166 — beyond the fixture's 25% cap — and stays, because only the
+    // minimum margin (50 / 0.92 = 54.35) is a hard floor.
+    expect(result.explainKey).toBe('pricing_engine.components.guardrails.explain.negotiated_price')
+    expect(result.explainValues.priceAfter).toBe('100.0000')
+    expect(result.params.maxDiscountPercent).toBe('25.0000')
   })
 })
 

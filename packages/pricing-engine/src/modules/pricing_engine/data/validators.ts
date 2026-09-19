@@ -202,8 +202,6 @@ const guardrailShape = {
   scope: pricingParamScopeSchema,
   scopeRefId: scopeRefString,
   minMarginPercent: nullableDecimalString,
-  // Caps how far a negotiated price may sit below the engine's own target (lib/components/guardrails.ts).
-  maxDiscountPercent: nullableDecimalString,
   floorPrice: nullableDecimalString,
   // `negotiated_price_precedence` is NOT NULL in the database and only the literal
   // 'negotiated_wins' has behaviour in `lib/components/guardrails.ts`; never accept null here.
@@ -212,28 +210,17 @@ const guardrailShape = {
 }
 
 function refineGuardrail(
-  value: { minMarginPercent?: string | null; maxDiscountPercent?: string | null },
+  value: { minMarginPercent?: string | null },
   ctx: z.RefinementCtx,
 ): void {
-  if (value.minMarginPercent !== null && value.minMarginPercent !== undefined) {
-    const percent = Number(value.minMarginPercent)
-    if (percent < 0 || percent >= 100) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['minMarginPercent'],
-        message: 'pricing_engine.params.errors.minMarginOutOfRange',
-      })
-    }
-  }
-  if (value.maxDiscountPercent !== null && value.maxDiscountPercent !== undefined) {
-    const percent = Number(value.maxDiscountPercent)
-    if (percent < 0 || percent >= 100) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['maxDiscountPercent'],
-        message: 'pricing_engine.params.errors.maxDiscountOutOfRange',
-      })
-    }
+  if (value.minMarginPercent === null || value.minMarginPercent === undefined) return
+  const percent = Number(value.minMarginPercent)
+  if (percent < 0 || percent >= 100) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['minMarginPercent'],
+      message: 'pricing_engine.params.errors.minMarginOutOfRange',
+    })
   }
 }
 

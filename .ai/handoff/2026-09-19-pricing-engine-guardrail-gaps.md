@@ -7,6 +7,15 @@ Moduł `distributor_workspace`, łatka integracyjna i pliki bazowe Open Mercato 
 Przeczytaj przed pracą nad `guardrails.ts`, `rounding.ts`, `productAspects.ts`, formularzem
 bezpieczników albo podglądem „wpływ ceny na klienta”.
 
+> **AKTUALIZACJA 2026-09-19 (PR #4) — limit rabatu WYŁĄCZONY.** Właściciel odwrócił decyzję D-A:
+> twardy limit po cichu podnosił ceny negocjowane, także uzasadnione (klient strategiczny, cena
+> konkurencji, historyczna cena klienta — np. kawiarnia płaciła 78 zł, a limit 15% wymuszał 93,88 zł).
+> `max_discount_percent` jest znów **tylko zapisywany** (jak przed PR #1): pole w formularzu
+> zablokowane z opisem „nie egzekwowane”, API go nie przyjmuje, silnik go nie stosuje. Jedynym twardym
+> progiem ceny negocjowanej jest marża minimalna. Z tego dokumentu **nadal obowiązuje**: zaokrąglanie
+> nigdy poniżej progu (`roundingFloorUnitPrice`, `priorResults`), jednostki wymiarów, poprawka komentarza
+> doradcy. Sekcje o limicie rabatu poniżej są historyczne.
+
 ## Po co
 
 Przegląd kodu silnika (stan `791c49d`) znalazł luki między tym, co specyfikacja i komentarze
