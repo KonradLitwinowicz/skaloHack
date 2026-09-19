@@ -50,6 +50,13 @@ B2B distribution. Spec: [`.ai/specs/2026-09-18-pricing-engine-module.md`](../../
   — no entity, no migration. Never add a "guardrail beats weights" filter there: every suggestion is
   priced by the full pipeline and is legal by construction, and a filter re-deriving the floor from
   `min_margin` alone would delete exactly the suggestions on expiring stock.
+- `max_discount_percent` caps a **negotiated** price only (raised to target × (1 − cap)), and only
+  while no expiry ladder or deadstock floor is open — those markdowns may go deeper. The engine's own
+  price is never capped. Owner decision; see `.ai/handoff/2026-09-19-pricing-engine-guardrail-gaps.md`.
+- `rounding` must never land below a guardrail floor. `guardrails.ts` publishes the binding floor as
+  `params.roundingFloorUnitPrice` (even when it did not move the price) and `rounding.ts` reads it via
+  `args.priorResults`, rounding UP onto the grid when needed. Any new floor goes into that maximum.
+- A `dimensions` object without `unit` is unknown, never centimetres — in every component that reads it.
 - `dedupeByChange` covers only changes carrying `toQuantity` or `toProductId`. `basket_consolidation`
   records nothing in `change` that tells its options apart, so collapsing on that payload would drop four
   of five merge options — deduplication must not become deletion.
