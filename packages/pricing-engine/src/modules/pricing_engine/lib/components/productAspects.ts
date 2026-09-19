@@ -77,14 +77,16 @@ function readUnitField(source: Record<string, unknown> | null, key: string): str
 function readVolumeCubicMetres(dimensions: Record<string, unknown> | null): VolumeReading {
   const width = readNumericField(dimensions, 'width')
   const height = readNumericField(dimensions, 'height')
-  const depth = readNumericField(dimensions, 'depth')
+  const depth = readNumericField(dimensions, 'depth') ?? readNumericField(dimensions, 'length')
   if (width === null || height === null || depth === null) {
     return { cubicMetres: null, unitRecognized: true, complete: false }
   }
 
-  // Catalog stores box dimensions in centimetres when the unit is left empty.
-  const unit = readUnitField(dimensions, 'unit') ?? 'cm'
-  const conversion = LENGTH_UNIT_TO_METRE[unit]
+  // The catalog's `dimensions.unit` is optional and has no default ('cm' is only a form
+  // placeholder), so an absent unit is unknown, not centimetres — the same reading as
+  // `warehouseCost`. 5 could be 5 cm or 5 m; the component reports the gap instead of guessing.
+  const unit = readUnitField(dimensions, 'unit')
+  const conversion = unit === null ? undefined : LENGTH_UNIT_TO_METRE[unit]
   if (!conversion) return { cubicMetres: null, unitRecognized: false, complete: true }
 
   const toMetre = toDecimal(conversion)

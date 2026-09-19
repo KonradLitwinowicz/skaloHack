@@ -75,6 +75,7 @@ function toEntityData(input: GuardrailCreateInput, ctx: CrudCtx): Record<string,
     scope: input.scope,
     scopeRefId: input.scopeRefId,
     minMarginPercent: toDecimalOrNull(input.minMarginPercent),
+    maxDiscountPercent: toDecimalOrNull(input.maxDiscountPercent),
     floorPrice: toDecimalOrNull(input.floorPrice),
     negotiatedPricePrecedence: input.negotiatedPricePrecedence,
     validFrom: input.validFrom,
@@ -87,6 +88,8 @@ function applyUpdate(entity: PricingGuardrail, input: GuardrailUpdateInput): voi
   entity.scope = input.scope
   entity.scopeRefId = input.scopeRefId
   entity.minMarginPercent = toDecimalOrNull(input.minMarginPercent)
+  // Absent (an older client) leaves the stored cap alone; an explicit null clears it.
+  if (input.maxDiscountPercent !== undefined) entity.maxDiscountPercent = toDecimalOrNull(input.maxDiscountPercent)
   entity.floorPrice = toDecimalOrNull(input.floorPrice)
   entity.negotiatedPricePrecedence = input.negotiatedPricePrecedence
   entity.validFrom = input.validFrom

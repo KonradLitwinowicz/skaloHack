@@ -64,7 +64,7 @@ function precedenceOptions(t: TranslateFn) {
   ]
 }
 
-function groups(t: TranslateFn, mode: ParamFormMode): CrudFormGroup[] {
+function groups(t: TranslateFn, _mode: ParamFormMode): CrudFormGroup[] {
   const limitFields: CrudField[] = [
     {
       id: 'minMarginPercent',
@@ -88,21 +88,18 @@ function groups(t: TranslateFn, mode: ParamFormMode): CrudFormGroup[] {
     },
   ]
 
-  // Stored and echoed into the breakdown, but `lib/components/guardrails.ts` never clamps on it.
-  // Showing it as an editable control would promise enforcement the engine does not deliver.
-  if (mode === 'edit') {
-    limitFields.push({
-      id: 'maxDiscountPercent',
-      type: 'number',
-      label: t('pricing_engine.params.guardrails.field.maxDiscount', 'Maximum discount (%)'),
-      disabled: true,
-      description: t(
-        'pricing_engine.params.guardrails.hint.maxDiscountNotEnforced',
-        'Recorded only. The engine does not currently enforce a discount cap.',
-      ),
-      layout: 'half',
-    })
-  }
+  // Enforced by `lib/components/guardrails.ts` on negotiated prices only: a negotiated price is
+  // raised to the engine's target less this percentage. Expiry and deadstock markdowns are not capped.
+  limitFields.push({
+    id: 'maxDiscountPercent',
+    type: 'number',
+    label: t('pricing_engine.params.guardrails.field.maxDiscount', 'Maximum discount (%)'),
+    description: t(
+      'pricing_engine.params.guardrails.hint.maxDiscount',
+      'A negotiated price may not fall more than this far below the calculated price; lower ones are raised to that limit.',
+    ),
+    layout: 'half',
+  })
 
   return [
     {
@@ -180,6 +177,12 @@ function buildPayload(values: ParamFormValues, t: TranslateFn): Record<string, u
     scope,
     scopeRefId,
     minMarginPercent,
+    maxDiscountPercent: optionalDecimal(
+      values,
+      'maxDiscountPercent',
+      t,
+      t('pricing_engine.params.guardrails.field.maxDiscount', 'Maximum discount (%)'),
+    ),
     floorPrice: optionalDecimal(
       values,
       'floorPrice',
@@ -272,6 +275,7 @@ export const guardrailDescriptor: ParamScreenDescriptor<GuardrailRow> = {
     code: '',
     ...scopeValues('global', null),
     minMarginPercent: '',
+    maxDiscountPercent: '',
     floorPrice: '',
     negotiatedPricePrecedence: 'negotiated_wins',
     validFrom: todayDateInput(),

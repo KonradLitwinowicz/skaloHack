@@ -78,6 +78,7 @@ export async function runPipeline(
         runningUnitValue,
         unitCostNet,
         componentValues,
+        priorResults: breakdown,
         deps,
       })
 
