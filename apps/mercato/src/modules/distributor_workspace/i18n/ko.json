@@ -5,6 +5,7 @@
   "distributor_workspace.dashboard.nextActions.title": "What to do today",
   "distributor_workspace.dashboard.stockGaps.description": "How many stock positions are at or below their reorder point, and how many of those are already below safety stock.",
   "distributor_workspace.dashboard.stockGaps.title": "Stock gaps",
+  "distributor_workspace.nav.dashboard": "대시보드",
   "distributor_workspace.orderForecast.accuracy.none": "Not enough history to score this method yet.",
   "distributor_workspace.orderForecast.accuracy.scored": "replayed cycles",
   "distributor_workspace.orderForecast.accuracy.title": "Historical accuracy",

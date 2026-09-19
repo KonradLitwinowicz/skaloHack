@@ -6,6 +6,11 @@ import type { ModuleInjectionTable } from '@open-mercato/shared/modules/widgets/
  * here never displaces one declared elsewhere; the host sorts by `priority` and renders them all.
  */
 export const injectionTable: ModuleInjectionTable = {
+  // The dashboard as the first entry of the distributor's sales group (see the widget for why).
+  'menu:sidebar:main': {
+    widgetId: 'distributor_workspace.injection.sidebar-dashboard',
+    priority: 10,
+  },
   'detail:customers.company:tabs': [
     {
       widgetId: 'distributor_workspace.injection.customer-order-forecast',

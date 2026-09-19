@@ -47,18 +47,24 @@
      "@open-mercato/search": "workspace:*",
 --- a/apps/mercato/src/i18n/de.json
 +++ b/apps/mercato/src/i18n/de.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Zum Login",
    "app.metadata.description": "KI-unterstützte, modulare ERP-Basis für Produkt- und Dienstleistungsunternehmen",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reklamationen",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Kunden",
++  "app.nav.groups.pricing": "Preisfindung",
++  "app.nav.groups.pricingPolicy": "Preispolitik",
++  "app.nav.groups.sales": "Vertrieb",
++  "app.nav.groups.serviceCosts": "Servicekosten",
++  "app.nav.groups.stock": "Produkte und Lager",
++  "app.nav.items.customerTasks": "Aufgaben",
++  "app.nav.items.products": "Produkte",
++  "app.nav.items.warehouse": "Lager",
    "app.page.activeModules.title": "Aktive Module",
    "app.page.dbStatus.connected": "Verbunden",
    "app.page.dbStatus.error": "Fehler: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Für dein Konto sind noch keine Widgets verfügbar.",
    "dashboard.error.partial": "Einige Änderungen wurden nicht gespeichert",
    "dashboard.error.reload": "Daten neu laden",
@@ -68,18 +74,24 @@
    "dashboard.saveError": "Dashboard-Layout konnte nicht gespeichert werden.",
 --- a/apps/mercato/src/i18n/en.json
 +++ b/apps/mercato/src/i18n/en.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Go to Login",
    "app.metadata.description": "AI‑supportive, modular ERP foundation for product & service companies",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Claims",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Customers",
++  "app.nav.groups.pricing": "Pricing",
++  "app.nav.groups.pricingPolicy": "Pricing policy",
++  "app.nav.groups.sales": "Sales",
++  "app.nav.groups.serviceCosts": "Cost to serve",
++  "app.nav.groups.stock": "Products and stock",
++  "app.nav.items.customerTasks": "Tasks",
++  "app.nav.items.products": "Products",
++  "app.nav.items.warehouse": "Warehouse",
    "app.page.activeModules.title": "Active Modules",
    "app.page.dbStatus.connected": "Connected",
    "app.page.dbStatus.error": "Error: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "No widgets are available for your account yet.",
    "dashboard.error.partial": "Some changes were not saved",
    "dashboard.error.reload": "Reload data",
@@ -89,18 +101,24 @@
    "dashboard.saveError": "Unable to save dashboard layout changes.",
 --- a/apps/mercato/src/i18n/es.json
 +++ b/apps/mercato/src/i18n/es.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Ir a iniciar sesión",
    "app.metadata.description": "Base ERP modular compatible con IA para empresas de productos y servicios",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reclamaciones",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Clientes",
++  "app.nav.groups.pricing": "Precios",
++  "app.nav.groups.pricingPolicy": "Política de precios",
++  "app.nav.groups.sales": "Ventas",
++  "app.nav.groups.serviceCosts": "Coste de servicio",
++  "app.nav.groups.stock": "Productos y almacén",
++  "app.nav.items.customerTasks": "Tareas",
++  "app.nav.items.products": "Productos",
++  "app.nav.items.warehouse": "Almacén",
    "app.page.activeModules.title": "Módulos activos",
    "app.page.dbStatus.connected": "Conectado",
    "app.page.dbStatus.error": "Error: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Todavía no hay widgets disponibles para tu cuenta.",
    "dashboard.error.partial": "Algunos cambios no se guardaron",
    "dashboard.error.reload": "Recargar datos",
@@ -110,18 +128,24 @@
    "dashboard.saveError": "No se pudieron guardar los cambios del panel.",
 --- a/apps/mercato/src/i18n/ko.json
 +++ b/apps/mercato/src/i18n/ko.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "로그인으로 이동",
    "app.metadata.description": "제품 및 서비스 기업을 위한 AI 지원 모듈형 ERP 기반",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "클레임",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "고객",
++  "app.nav.groups.pricing": "가격 책정",
++  "app.nav.groups.pricingPolicy": "가격 정책",
++  "app.nav.groups.sales": "영업",
++  "app.nav.groups.serviceCosts": "서비스 비용",
++  "app.nav.groups.stock": "제품 및 재고",
++  "app.nav.items.customerTasks": "작업",
++  "app.nav.items.products": "제품",
++  "app.nav.items.warehouse": "창고",
    "app.page.activeModules.title": "활성 모듈",
    "app.page.dbStatus.connected": "연결됨",
    "app.page.dbStatus.error": "오류: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "아직 계정에서 사용할 수 있는 위젯이 없습니다.",
    "dashboard.error.partial": "일부 변경 사항이 저장되지 않았습니다",
    "dashboard.error.reload": "데이터 다시 불러오기",
@@ -131,18 +155,24 @@
    "dashboard.saveError": "대시보드 레이아웃 변경 사항을 저장할 수 없습니다.",
 --- a/apps/mercato/src/i18n/pl.json
 +++ b/apps/mercato/src/i18n/pl.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Przejdź do logowania",
    "app.metadata.description": "Modularna podstawa ERP z obsługą AI dla firm produkcyjnych i usługowych",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reklamacje",
-+  "app.nav.groups.daily": "Codzienna praca",
-+  "app.nav.groups.pricingSettings": "Ustawienia wyceny",
-+  "app.nav.groups.records": "Klienci i towar",
++  "app.nav.groups.customers": "Klienci",
++  "app.nav.groups.pricing": "Wycena",
++  "app.nav.groups.pricingPolicy": "Polityka cenowa",
++  "app.nav.groups.sales": "Sprzedaż",
++  "app.nav.groups.serviceCosts": "Koszty obsługi",
++  "app.nav.groups.stock": "Towar i magazyn",
++  "app.nav.items.customerTasks": "Zadania",
++  "app.nav.items.products": "Produkty",
++  "app.nav.items.warehouse": "Magazyn",
    "app.page.activeModules.title": "Aktywne moduły",
    "app.page.dbStatus.connected": "Połączono",
    "app.page.dbStatus.error": "Błąd: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Brak dostępnych widżetów dla Twojego konta.",
    "dashboard.error.partial": "Niektóre zmiany nie zostały zapisane",
    "dashboard.error.reload": "Ponownie wczytaj dane",
@@ -161,7 +191,7 @@
  import { officialModuleEntries } from './official-modules.generated'
  
  export type ModuleEntry = {
-@@ -68,6 +68,181 @@
+@@ -68,6 +68,210 @@ export const moduleOverrideExamples: ModuleOverrides = {
    },
  }
  
@@ -176,18 +206,26 @@
 + * block regroups pages owned by `@open-mercato/core` and `@open-mercato/pricing-engine` without
 + * editing either package.
 + *
-+ * The grouping axis is HOW OFTEN a wholesale operator opens a screen, not which engine owns it.
-+ * The previous revision grouped by domain and produced sidebar headings that promised work and
-+ * delivered rate tables — a group called "Delivery" that held fuel prices and vehicle fuel
-+ * consumption and not one delivery. A heading that lies is worse than no heading, because the
-+ * operator pays the click before learning it. Three tiers replace it:
-+ *   - `daily` — the sell-and-ship loop, in the order the day runs it.
-+ *   - `records` — the ledgers that loop reads from: who buys, what is sold, what is in stock.
-+ *   - `pricingSettings` — every rate table, in one drawer, last, named for what it holds.
-+ * `claims` keeps its own heading: warranty work is real work, just not every day.
++ * The groups follow the distributor's working process, top to bottom, and each heading names what
++ * it holds (a heading that promises work and delivers rate tables is worse than no heading):
++ *   - `sales` — the demand-to-order loop in the order it runs: what is coming (predicted orders),
++ *     what was asked (quotes), what was placed (orders). The dashboard ("what to do today") is
++ *     injected as its first item by `distributor_workspace/widgets/injection/sidebar-dashboard`,
++ *     because `/backend` is an app page, not a module route an override can re-home.
++ *   - `pricing` — the tools used while pricing a deal: calculator, advisor, and the deadstock
++ *     screen where a person authorises a liquidation floor.
++ *   - `customers` — who buys and the conversation with them: companies, people, tasks, calendar,
++ *     messages.
++ *   - `stock` — what is sold and what is on the shelf: products, categories, the warehouse.
++ *   - `claims` — warranty work: real work, not every day.
++ *   - `pricingPolicy` and `serviceCosts` — every pricing rate table, split into the policy the owner
++ *     sets (margins, guardrails, objectives) and the cost inputs the engine derives from. Filled at
++ *     rollout, revisited when a rate card changes, so both sit last.
 + *
 + * `groupKey` becomes the sidebar group id and is looked up in `apps/mercato/src/i18n/*.json`;
-+ * `group` is the literal a locale without that key falls back to, so it stays English.
++ * `group` is the literal a locale without that key falls back to, so it stays English. The same
++ * holds for an optional `titleKey`/`title`, which renames a core page in the sidebar only (its page
++ * header keeps the owning module's title); pricing_engine pages are renamed at the source instead.
 + *
 + * `priority` has to be restated per page: `resolveNavItemWeight` reads `priority ?? order`, and
 + * every page in these modules already declares a single per-module priority, which collapses the
@@ -196,6 +234,8 @@
 +type DistributorNavPage = {
 +  path: string
 +  priority: number
++  titleKey?: string
++  title?: string
 +}
 +
 +type DistributorNavGroup = {
@@ -206,27 +246,26 @@
 +
 +export const distributorNavGroups: readonly DistributorNavGroup[] = [
 +  {
-+    id: 'app.nav.groups.daily',
-+    defaultName: 'Daily work',
++    id: 'app.nav.groups.sales',
++    defaultName: 'Sales',
 +    pages: [
-+      { path: '/backend/sales/orders', priority: 10 },
-+      // Directly under the order list, because it answers the question the operator opens that
-+      // list to ask — what is coming — before the orders that have already arrived.
-+      { path: '/backend/predicted-orders', priority: 15 },
++      { path: '/backend/predicted-orders', priority: 10 },
 +      { path: '/backend/sales/quotes', priority: 20 },
-+      { path: '/backend/pricing/calculator', priority: 30 },
-+      { path: '/backend/pricing/advisor', priority: 40 },
-+      { path: '/backend/sales/documents/create', priority: 50 },
-+      { path: '/backend/customer-tasks', priority: 60 },
-+      { path: '/backend/calendar', priority: 70 },
-+      // Pulled up out of its own single-item group: a customer thread is read as often as an
-+      // order is, and it arrived while the operator was already looking at this list.
-+      { path: '/backend/messages', priority: 80 },
++      { path: '/backend/sales/orders', priority: 30 },
 +    ],
 +  },
 +  {
-+    id: 'app.nav.groups.records',
-+    defaultName: 'Customers and stock',
++    id: 'app.nav.groups.pricing',
++    defaultName: 'Pricing',
++    pages: [
++      { path: '/backend/pricing/calculator', priority: 10 },
++      { path: '/backend/pricing/advisor', priority: 20 },
++      { path: '/backend/pricing/deadstock', priority: 30 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.customers',
++    defaultName: 'Customers',
 +    pages: [
 +      { path: '/backend/customers/companies', priority: 10 },
 +      { path: '/backend/customers/companies/create', priority: 11 },
@@ -236,18 +275,27 @@
 +      { path: '/backend/customers/deals/create', priority: 31 },
 +      { path: '/backend/customers/deals/pipeline', priority: 32 },
 +      { path: '/backend/customers/deals/map', priority: 33 },
-+      { path: '/backend/catalog/products', priority: 40 },
-+      { path: '/backend/catalog/products/create', priority: 41 },
-+      { path: '/backend/catalog/categories', priority: 50 },
-+      { path: '/backend/catalog/categories/create', priority: 51 },
-+      { path: '/backend/wms', priority: 60 },
-+      { path: '/backend/wms/inventory', priority: 61 },
-+      { path: '/backend/wms/warehouses', priority: 62 },
-+      { path: '/backend/wms/zones', priority: 63 },
-+      { path: '/backend/wms/locations', priority: 64 },
-+      { path: '/backend/wms/lots', priority: 65 },
-+      { path: '/backend/wms/movements', priority: 66 },
-+      { path: '/backend/wms/reservations', priority: 67 },
++      { path: '/backend/customer-tasks', priority: 40, titleKey: 'app.nav.items.customerTasks', title: 'Tasks' },
++      { path: '/backend/calendar', priority: 50 },
++      { path: '/backend/messages', priority: 60 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.stock',
++    defaultName: 'Products and stock',
++    pages: [
++      { path: '/backend/catalog/products', priority: 10, titleKey: 'app.nav.items.products', title: 'Products' },
++      { path: '/backend/catalog/products/create', priority: 11 },
++      { path: '/backend/catalog/categories', priority: 20 },
++      { path: '/backend/catalog/categories/create', priority: 21 },
++      { path: '/backend/wms', priority: 30, titleKey: 'app.nav.items.warehouse', title: 'Warehouse' },
++      { path: '/backend/wms/inventory', priority: 31 },
++      { path: '/backend/wms/warehouses', priority: 32 },
++      { path: '/backend/wms/zones', priority: 33 },
++      { path: '/backend/wms/locations', priority: 34 },
++      { path: '/backend/wms/lots', priority: 35 },
++      { path: '/backend/wms/movements', priority: 36 },
++      { path: '/backend/wms/reservations', priority: 37 },
 +    ],
 +  },
 +  {
@@ -266,27 +314,31 @@
 +    ],
 +  },
 +  {
-+    /**
-+     * Every `/backend/pricing/params/*` screen, ordered by how likely the operator is to be the
-+     * one who opens it: margin policy first, then the cost inputs the engine derives from, with
-+     * fleet and fuel last. Nothing here is edited while quoting — it was filled in at rollout and
-+     * is revisited when a rate card changes, so the whole drawer sits after the daily tiers.
-+     */
-+    id: 'app.nav.groups.pricingSettings',
-+    defaultName: 'Pricing settings',
++    // What the owner decides: how much to earn, the floors nothing may break, and what the advisor
++    // should optimise for.
++    id: 'app.nav.groups.pricingPolicy',
++    defaultName: 'Pricing policy',
 +    pages: [
 +      { path: '/backend/pricing/params/margin-rules', priority: 10 },
 +      { path: '/backend/pricing/params/guardrails', priority: 20 },
 +      { path: '/backend/pricing/params/objectives', priority: 30 },
-+      { path: '/backend/pricing/params/purchase-positions', priority: 40 },
-+      { path: '/backend/pricing/params/labor-rates', priority: 50 },
-+      { path: '/backend/pricing/params/process-steps', priority: 60 },
-+      { path: '/backend/pricing/params/order-scenarios', priority: 70 },
-+      { path: '/backend/pricing/params/warehouse-costs', priority: 80 },
-+      { path: '/backend/pricing/params/packaging-costs', priority: 90 },
-+      { path: '/backend/pricing/params/delivery-zones', priority: 100 },
-+      { path: '/backend/pricing/params/vehicles', priority: 110 },
-+      { path: '/backend/pricing/params/fuel-prices', priority: 120 },
++    ],
++  },
++  {
++    // What serving a customer costs: the inputs the engine derives every price from, in the order a
++    // price is built (purchase, labour, process, channel, storage, packing, delivery).
++    id: 'app.nav.groups.serviceCosts',
++    defaultName: 'Cost to serve',
++    pages: [
++      { path: '/backend/pricing/params/purchase-positions', priority: 10 },
++      { path: '/backend/pricing/params/labor-rates', priority: 20 },
++      { path: '/backend/pricing/params/process-steps', priority: 30 },
++      { path: '/backend/pricing/params/order-scenarios', priority: 40 },
++      { path: '/backend/pricing/params/warehouse-costs', priority: 50 },
++      { path: '/backend/pricing/params/packaging-costs', priority: 60 },
++      { path: '/backend/pricing/params/delivery-zones', priority: 70 },
++      { path: '/backend/pricing/params/vehicles', priority: 80 },
++      { path: '/backend/pricing/params/fuel-prices', priority: 90 },
 +    ],
 +  },
 +]
@@ -300,28 +352,28 @@
 + *
 + * Why each one:
 + *   - `shadow-observations` — a diagnostic ledger of what the pricing engine WOULD have charged
-+ *     against what sales actually invoiced. It is a reporting label, not a control: no component
-+ *     and no pipeline stage reads it, and no row here ever moved a sales amount. The writer is
-+ *     gated behind `OM_PRICING_SHADOW_OBSERVE`, which is unset, so the table holds zero rows and
-+ *     will hold zero rows until someone turns observation on deliberately.
-+ *   - `playground` — a what-if bench for the engine's parameters. The operator quotes on the
-+ *     calculator; the playground answers a question only whoever tunes the parameters asks.
-+ *   - `coverage` — the register of which pricing components rest on measured data and which rest
-+ *     on defaults. Honest and worth having, but it answers "can I trust this number?" in a
-+ *     different place from where the number is shown, and mid-phone-call nobody navigates away to
-+ *     ask. The advisor and calculator already carry that answer inline on the figure itself
-+ *     (`ConfidenceBadge`), which is where the question is actually asked.
-+ *   - `docs` — the OpenAPI browser. An integrator's screen that reached the operator's sidebar.
++ *     against what sales actually invoiced. Gated behind `OM_PRICING_SHADOW_OBSERVE`, unset, so it
++ *     holds zero rows.
++ *   - `playground` — a what-if bench for whoever tunes the parameters; operators quote on the
++ *     calculator.
++ *   - `coverage` — "can I trust this number?" is answered inline on the figure (`ConfidenceBadge`),
++ *     where the question is actually asked.
++ *   - `docs` — the OpenAPI browser, an integrator's screen.
++ *   - `sales/documents/create` — an action, not a place: the quote and order lists already carry a
++ *     create button, and a sidebar slot for it split the sales loop in two.
++ *   - `storage/attachments` — a platform file browser; a distributor reaches files from the record
++ *     they belong to.
 + *
-+ * This is a path-keyed override with no role dimension, so the four disappear from every role's
-+ * sidebar, administrators included. That is the intended trade for this app: all four remain one
-+ * typed URL away, and none of them is a screen a sidebar is the right entry point for.
++ * This is a path-keyed override with no role dimension, so these disappear from every role's
++ * sidebar, administrators included. All remain one typed URL away.
 + */
 +export const distributorNavHiddenPages: readonly string[] = [
 +  '/backend/pricing/shadow-observations',
 +  '/backend/pricing/playground',
 +  '/backend/pricing/coverage',
 +  '/backend/docs',
++  '/backend/sales/documents/create',
++  '/backend/storage/attachments',
 +]
 +
 +export const distributorNavGroupOrder: readonly string[] = distributorNavGroups.map((group) => group.id)
@@ -331,7 +383,14 @@
 +    distributorNavGroups.flatMap((group) =>
 +      group.pages.map((page) => [
 +        page.path,
-+        { metadata: { group: group.defaultName, groupKey: group.id, priority: page.priority } },
++        {
++          metadata: {
++            group: group.defaultName,
++            groupKey: group.id,
++            priority: page.priority,
++            ...(page.titleKey ? { titleKey: page.titleKey, title: page.title } : {}),
++          },
++        },
 +      ]),
 +    ),
 +  ),
@@ -343,7 +402,7 @@
  export const enabledModules: ModuleEntry[] = [
    { id: 'dashboards', from: '@open-mercato/core' },
    { id: 'auth', from: '@open-mercato/core' },
-@@ -81,6 +256,12 @@
+@@ -81,6 +285,12 @@ export const enabledModules: ModuleEntry[] = [
    { id: 'attachments', from: '@open-mercato/core' },
    { id: 'catalog', from: '@open-mercato/core' },
    { id: 'sales', from: '@open-mercato/core' },
@@ -356,7 +415,7 @@
    { id: 'warranty_claims', from: '@open-mercato/core' },
    { id: 'wms', from: '@open-mercato/core' },
    { id: 'api_keys', from: '@open-mercato/core' },
-@@ -164,6 +345,25 @@
+@@ -164,6 +374,25 @@ export const enabledModules: ModuleEntry[] = [
        },
      },
    },
@@ -2662,18 +2721,24 @@
  })
 --- a/packages/create-app/template/src/i18n/de.json
 +++ b/packages/create-app/template/src/i18n/de.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Zum Login",
    "app.metadata.description": "KI-unterstützte, modulare ERP-Basis für Produkt- und Dienstleistungsunternehmen",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reklamationen",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Kunden",
++  "app.nav.groups.pricing": "Preisfindung",
++  "app.nav.groups.pricingPolicy": "Preispolitik",
++  "app.nav.groups.sales": "Vertrieb",
++  "app.nav.groups.serviceCosts": "Servicekosten",
++  "app.nav.groups.stock": "Produkte und Lager",
++  "app.nav.items.customerTasks": "Aufgaben",
++  "app.nav.items.products": "Produkte",
++  "app.nav.items.warehouse": "Lager",
    "app.page.activeModules.title": "Aktive Module",
    "app.page.dbStatus.connected": "Verbunden",
    "app.page.dbStatus.error": "Fehler: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Für dein Konto sind noch keine Widgets verfügbar.",
    "dashboard.error.partial": "Einige Änderungen wurden nicht gespeichert",
    "dashboard.error.reload": "Daten neu laden",
@@ -2683,18 +2748,24 @@
    "dashboard.saveError": "Dashboard-Layout konnte nicht gespeichert werden.",
 --- a/packages/create-app/template/src/i18n/en.json
 +++ b/packages/create-app/template/src/i18n/en.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Go to Login",
    "app.metadata.description": "AI‑supportive, modular ERP foundation for product & service companies",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Claims",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Customers",
++  "app.nav.groups.pricing": "Pricing",
++  "app.nav.groups.pricingPolicy": "Pricing policy",
++  "app.nav.groups.sales": "Sales",
++  "app.nav.groups.serviceCosts": "Cost to serve",
++  "app.nav.groups.stock": "Products and stock",
++  "app.nav.items.customerTasks": "Tasks",
++  "app.nav.items.products": "Products",
++  "app.nav.items.warehouse": "Warehouse",
    "app.page.activeModules.title": "Active Modules",
    "app.page.dbStatus.connected": "Connected",
    "app.page.dbStatus.error": "Error: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "No widgets are available for your account yet.",
    "dashboard.error.partial": "Some changes were not saved",
    "dashboard.error.reload": "Reload data",
@@ -2704,18 +2775,24 @@
    "dashboard.saveError": "Unable to save dashboard layout changes.",
 --- a/packages/create-app/template/src/i18n/es.json
 +++ b/packages/create-app/template/src/i18n/es.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Ir a iniciar sesión",
    "app.metadata.description": "Base ERP modular compatible con IA para empresas de productos y servicios",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reclamaciones",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "Clientes",
++  "app.nav.groups.pricing": "Precios",
++  "app.nav.groups.pricingPolicy": "Política de precios",
++  "app.nav.groups.sales": "Ventas",
++  "app.nav.groups.serviceCosts": "Coste de servicio",
++  "app.nav.groups.stock": "Productos y almacén",
++  "app.nav.items.customerTasks": "Tareas",
++  "app.nav.items.products": "Productos",
++  "app.nav.items.warehouse": "Almacén",
    "app.page.activeModules.title": "Módulos activos",
    "app.page.dbStatus.connected": "Conectado",
    "app.page.dbStatus.error": "Error: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Todavía no hay widgets disponibles para tu cuenta.",
    "dashboard.error.partial": "Algunos cambios no se guardaron",
    "dashboard.error.reload": "Recargar datos",
@@ -2725,18 +2802,24 @@
    "dashboard.saveError": "No se pudieron guardar los cambios del panel.",
 --- a/packages/create-app/template/src/i18n/ko.json
 +++ b/packages/create-app/template/src/i18n/ko.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "로그인으로 이동",
    "app.metadata.description": "제품 및 서비스 기업을 위한 AI 지원 모듈형 ERP 기반",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "클레임",
-+  "app.nav.groups.daily": "Daily work",
-+  "app.nav.groups.pricingSettings": "Pricing settings",
-+  "app.nav.groups.records": "Customers and stock",
++  "app.nav.groups.customers": "고객",
++  "app.nav.groups.pricing": "가격 책정",
++  "app.nav.groups.pricingPolicy": "가격 정책",
++  "app.nav.groups.sales": "영업",
++  "app.nav.groups.serviceCosts": "서비스 비용",
++  "app.nav.groups.stock": "제품 및 재고",
++  "app.nav.items.customerTasks": "작업",
++  "app.nav.items.products": "제품",
++  "app.nav.items.warehouse": "창고",
    "app.page.activeModules.title": "활성 모듈",
    "app.page.dbStatus.connected": "연결됨",
    "app.page.dbStatus.error": "오류: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "아직 계정에서 사용할 수 있는 위젯이 없습니다.",
    "dashboard.error.partial": "일부 변경 사항이 저장되지 않았습니다",
    "dashboard.error.reload": "데이터 다시 불러오기",
@@ -2746,18 +2829,24 @@
    "dashboard.saveError": "대시보드 레이아웃 변경 사항을 저장할 수 없습니다.",
 --- a/packages/create-app/template/src/i18n/pl.json
 +++ b/packages/create-app/template/src/i18n/pl.json
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,16 @@
    "app.goToLogin": "Przejdź do logowania",
    "app.metadata.description": "Modularna podstawa ERP z obsługą AI dla firm produkcyjnych i usługowych",
    "app.metadata.title": "Open Mercato",
 +  "app.nav.groups.claims": "Reklamacje",
-+  "app.nav.groups.daily": "Codzienna praca",
-+  "app.nav.groups.pricingSettings": "Ustawienia wyceny",
-+  "app.nav.groups.records": "Klienci i towar",
++  "app.nav.groups.customers": "Klienci",
++  "app.nav.groups.pricing": "Wycena",
++  "app.nav.groups.pricingPolicy": "Polityka cenowa",
++  "app.nav.groups.sales": "Sprzedaż",
++  "app.nav.groups.serviceCosts": "Koszty obsługi",
++  "app.nav.groups.stock": "Towar i magazyn",
++  "app.nav.items.customerTasks": "Zadania",
++  "app.nav.items.products": "Produkty",
++  "app.nav.items.warehouse": "Magazyn",
    "app.page.activeModules.title": "Aktywne moduły",
    "app.page.dbStatus.connected": "Połączono",
    "app.page.dbStatus.error": "Błąd: {message}",
-@@ -249,6 +253,7 @@
+@@ -249,6 +259,7 @@
    "dashboard.empty.readonly": "Brak dostępnych widżetów dla Twojego konta.",
    "dashboard.error.partial": "Niektóre zmiany nie zostały zapisane",
    "dashboard.error.reload": "Ponownie wczytaj dane",
@@ -2776,7 +2865,7 @@
  import { officialModuleEntries } from './official-modules.generated'
  
  export type ModuleEntry = {
-@@ -68,6 +68,181 @@
+@@ -68,6 +68,210 @@ export const moduleOverrideExamples: ModuleOverrides = {
    },
  }
  
@@ -2791,18 +2880,26 @@
 + * block regroups pages owned by `@open-mercato/core` and `@open-mercato/pricing-engine` without
 + * editing either package.
 + *
-+ * The grouping axis is HOW OFTEN a wholesale operator opens a screen, not which engine owns it.
-+ * The previous revision grouped by domain and produced sidebar headings that promised work and
-+ * delivered rate tables — a group called "Delivery" that held fuel prices and vehicle fuel
-+ * consumption and not one delivery. A heading that lies is worse than no heading, because the
-+ * operator pays the click before learning it. Three tiers replace it:
-+ *   - `daily` — the sell-and-ship loop, in the order the day runs it.
-+ *   - `records` — the ledgers that loop reads from: who buys, what is sold, what is in stock.
-+ *   - `pricingSettings` — every rate table, in one drawer, last, named for what it holds.
-+ * `claims` keeps its own heading: warranty work is real work, just not every day.
++ * The groups follow the distributor's working process, top to bottom, and each heading names what
++ * it holds (a heading that promises work and delivers rate tables is worse than no heading):
++ *   - `sales` — the demand-to-order loop in the order it runs: what is coming (predicted orders),
++ *     what was asked (quotes), what was placed (orders). The dashboard ("what to do today") is
++ *     injected as its first item by `distributor_workspace/widgets/injection/sidebar-dashboard`,
++ *     because `/backend` is an app page, not a module route an override can re-home.
++ *   - `pricing` — the tools used while pricing a deal: calculator, advisor, and the deadstock
++ *     screen where a person authorises a liquidation floor.
++ *   - `customers` — who buys and the conversation with them: companies, people, tasks, calendar,
++ *     messages.
++ *   - `stock` — what is sold and what is on the shelf: products, categories, the warehouse.
++ *   - `claims` — warranty work: real work, not every day.
++ *   - `pricingPolicy` and `serviceCosts` — every pricing rate table, split into the policy the owner
++ *     sets (margins, guardrails, objectives) and the cost inputs the engine derives from. Filled at
++ *     rollout, revisited when a rate card changes, so both sit last.
 + *
 + * `groupKey` becomes the sidebar group id and is looked up in `apps/mercato/src/i18n/*.json`;
-+ * `group` is the literal a locale without that key falls back to, so it stays English.
++ * `group` is the literal a locale without that key falls back to, so it stays English. The same
++ * holds for an optional `titleKey`/`title`, which renames a core page in the sidebar only (its page
++ * header keeps the owning module's title); pricing_engine pages are renamed at the source instead.
 + *
 + * `priority` has to be restated per page: `resolveNavItemWeight` reads `priority ?? order`, and
 + * every page in these modules already declares a single per-module priority, which collapses the
@@ -2811,6 +2908,8 @@
 +type DistributorNavPage = {
 +  path: string
 +  priority: number
++  titleKey?: string
++  title?: string
 +}
 +
 +type DistributorNavGroup = {
@@ -2821,27 +2920,26 @@
 +
 +export const distributorNavGroups: readonly DistributorNavGroup[] = [
 +  {
-+    id: 'app.nav.groups.daily',
-+    defaultName: 'Daily work',
++    id: 'app.nav.groups.sales',
++    defaultName: 'Sales',
 +    pages: [
-+      { path: '/backend/sales/orders', priority: 10 },
-+      // Directly under the order list, because it answers the question the operator opens that
-+      // list to ask — what is coming — before the orders that have already arrived.
-+      { path: '/backend/predicted-orders', priority: 15 },
++      { path: '/backend/predicted-orders', priority: 10 },
 +      { path: '/backend/sales/quotes', priority: 20 },
-+      { path: '/backend/pricing/calculator', priority: 30 },
-+      { path: '/backend/pricing/advisor', priority: 40 },
-+      { path: '/backend/sales/documents/create', priority: 50 },
-+      { path: '/backend/customer-tasks', priority: 60 },
-+      { path: '/backend/calendar', priority: 70 },
-+      // Pulled up out of its own single-item group: a customer thread is read as often as an
-+      // order is, and it arrived while the operator was already looking at this list.
-+      { path: '/backend/messages', priority: 80 },
++      { path: '/backend/sales/orders', priority: 30 },
 +    ],
 +  },
 +  {
-+    id: 'app.nav.groups.records',
-+    defaultName: 'Customers and stock',
++    id: 'app.nav.groups.pricing',
++    defaultName: 'Pricing',
++    pages: [
++      { path: '/backend/pricing/calculator', priority: 10 },
++      { path: '/backend/pricing/advisor', priority: 20 },
++      { path: '/backend/pricing/deadstock', priority: 30 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.customers',
++    defaultName: 'Customers',
 +    pages: [
 +      { path: '/backend/customers/companies', priority: 10 },
 +      { path: '/backend/customers/companies/create', priority: 11 },
@@ -2851,18 +2949,27 @@
 +      { path: '/backend/customers/deals/create', priority: 31 },
 +      { path: '/backend/customers/deals/pipeline', priority: 32 },
 +      { path: '/backend/customers/deals/map', priority: 33 },
-+      { path: '/backend/catalog/products', priority: 40 },
-+      { path: '/backend/catalog/products/create', priority: 41 },
-+      { path: '/backend/catalog/categories', priority: 50 },
-+      { path: '/backend/catalog/categories/create', priority: 51 },
-+      { path: '/backend/wms', priority: 60 },
-+      { path: '/backend/wms/inventory', priority: 61 },
-+      { path: '/backend/wms/warehouses', priority: 62 },
-+      { path: '/backend/wms/zones', priority: 63 },
-+      { path: '/backend/wms/locations', priority: 64 },
-+      { path: '/backend/wms/lots', priority: 65 },
-+      { path: '/backend/wms/movements', priority: 66 },
-+      { path: '/backend/wms/reservations', priority: 67 },
++      { path: '/backend/customer-tasks', priority: 40, titleKey: 'app.nav.items.customerTasks', title: 'Tasks' },
++      { path: '/backend/calendar', priority: 50 },
++      { path: '/backend/messages', priority: 60 },
++    ],
++  },
++  {
++    id: 'app.nav.groups.stock',
++    defaultName: 'Products and stock',
++    pages: [
++      { path: '/backend/catalog/products', priority: 10, titleKey: 'app.nav.items.products', title: 'Products' },
++      { path: '/backend/catalog/products/create', priority: 11 },
++      { path: '/backend/catalog/categories', priority: 20 },
++      { path: '/backend/catalog/categories/create', priority: 21 },
++      { path: '/backend/wms', priority: 30, titleKey: 'app.nav.items.warehouse', title: 'Warehouse' },
++      { path: '/backend/wms/inventory', priority: 31 },
++      { path: '/backend/wms/warehouses', priority: 32 },
++      { path: '/backend/wms/zones', priority: 33 },
++      { path: '/backend/wms/locations', priority: 34 },
++      { path: '/backend/wms/lots', priority: 35 },
++      { path: '/backend/wms/movements', priority: 36 },
++      { path: '/backend/wms/reservations', priority: 37 },
 +    ],
 +  },
 +  {
@@ -2881,27 +2988,31 @@
 +    ],
 +  },
 +  {
-+    /**
-+     * Every `/backend/pricing/params/*` screen, ordered by how likely the operator is to be the
-+     * one who opens it: margin policy first, then the cost inputs the engine derives from, with
-+     * fleet and fuel last. Nothing here is edited while quoting — it was filled in at rollout and
-+     * is revisited when a rate card changes, so the whole drawer sits after the daily tiers.
-+     */
-+    id: 'app.nav.groups.pricingSettings',
-+    defaultName: 'Pricing settings',
++    // What the owner decides: how much to earn, the floors nothing may break, and what the advisor
++    // should optimise for.
++    id: 'app.nav.groups.pricingPolicy',
++    defaultName: 'Pricing policy',
 +    pages: [
 +      { path: '/backend/pricing/params/margin-rules', priority: 10 },
 +      { path: '/backend/pricing/params/guardrails', priority: 20 },
 +      { path: '/backend/pricing/params/objectives', priority: 30 },
-+      { path: '/backend/pricing/params/purchase-positions', priority: 40 },
-+      { path: '/backend/pricing/params/labor-rates', priority: 50 },
-+      { path: '/backend/pricing/params/process-steps', priority: 60 },
-+      { path: '/backend/pricing/params/order-scenarios', priority: 70 },
-+      { path: '/backend/pricing/params/warehouse-costs', priority: 80 },
-+      { path: '/backend/pricing/params/packaging-costs', priority: 90 },
-+      { path: '/backend/pricing/params/delivery-zones', priority: 100 },
-+      { path: '/backend/pricing/params/vehicles', priority: 110 },
-+      { path: '/backend/pricing/params/fuel-prices', priority: 120 },
++    ],
++  },
++  {
++    // What serving a customer costs: the inputs the engine derives every price from, in the order a
++    // price is built (purchase, labour, process, channel, storage, packing, delivery).
++    id: 'app.nav.groups.serviceCosts',
++    defaultName: 'Cost to serve',
++    pages: [
++      { path: '/backend/pricing/params/purchase-positions', priority: 10 },
++      { path: '/backend/pricing/params/labor-rates', priority: 20 },
++      { path: '/backend/pricing/params/process-steps', priority: 30 },
++      { path: '/backend/pricing/params/order-scenarios', priority: 40 },
++      { path: '/backend/pricing/params/warehouse-costs', priority: 50 },
++      { path: '/backend/pricing/params/packaging-costs', priority: 60 },
++      { path: '/backend/pricing/params/delivery-zones', priority: 70 },
++      { path: '/backend/pricing/params/vehicles', priority: 80 },
++      { path: '/backend/pricing/params/fuel-prices', priority: 90 },
 +    ],
 +  },
 +]
@@ -2915,28 +3026,28 @@
 + *
 + * Why each one:
 + *   - `shadow-observations` — a diagnostic ledger of what the pricing engine WOULD have charged
-+ *     against what sales actually invoiced. It is a reporting label, not a control: no component
-+ *     and no pipeline stage reads it, and no row here ever moved a sales amount. The writer is
-+ *     gated behind `OM_PRICING_SHADOW_OBSERVE`, which is unset, so the table holds zero rows and
-+ *     will hold zero rows until someone turns observation on deliberately.
-+ *   - `playground` — a what-if bench for the engine's parameters. The operator quotes on the
-+ *     calculator; the playground answers a question only whoever tunes the parameters asks.
-+ *   - `coverage` — the register of which pricing components rest on measured data and which rest
-+ *     on defaults. Honest and worth having, but it answers "can I trust this number?" in a
-+ *     different place from where the number is shown, and mid-phone-call nobody navigates away to
-+ *     ask. The advisor and calculator already carry that answer inline on the figure itself
-+ *     (`ConfidenceBadge`), which is where the question is actually asked.
-+ *   - `docs` — the OpenAPI browser. An integrator's screen that reached the operator's sidebar.
++ *     against what sales actually invoiced. Gated behind `OM_PRICING_SHADOW_OBSERVE`, unset, so it
++ *     holds zero rows.
++ *   - `playground` — a what-if bench for whoever tunes the parameters; operators quote on the
++ *     calculator.
++ *   - `coverage` — "can I trust this number?" is answered inline on the figure (`ConfidenceBadge`),
++ *     where the question is actually asked.
++ *   - `docs` — the OpenAPI browser, an integrator's screen.
++ *   - `sales/documents/create` — an action, not a place: the quote and order lists already carry a
++ *     create button, and a sidebar slot for it split the sales loop in two.
++ *   - `storage/attachments` — a platform file browser; a distributor reaches files from the record
++ *     they belong to.
 + *
-+ * This is a path-keyed override with no role dimension, so the four disappear from every role's
-+ * sidebar, administrators included. That is the intended trade for this app: all four remain one
-+ * typed URL away, and none of them is a screen a sidebar is the right entry point for.
++ * This is a path-keyed override with no role dimension, so these disappear from every role's
++ * sidebar, administrators included. All remain one typed URL away.
 + */
 +export const distributorNavHiddenPages: readonly string[] = [
 +  '/backend/pricing/shadow-observations',
 +  '/backend/pricing/playground',
 +  '/backend/pricing/coverage',
 +  '/backend/docs',
++  '/backend/sales/documents/create',
++  '/backend/storage/attachments',
 +]
 +
 +export const distributorNavGroupOrder: readonly string[] = distributorNavGroups.map((group) => group.id)
@@ -2946,7 +3057,14 @@
 +    distributorNavGroups.flatMap((group) =>
 +      group.pages.map((page) => [
 +        page.path,
-+        { metadata: { group: group.defaultName, groupKey: group.id, priority: page.priority } },
++        {
++          metadata: {
++            group: group.defaultName,
++            groupKey: group.id,
++            priority: page.priority,
++            ...(page.titleKey ? { titleKey: page.titleKey, title: page.title } : {}),
++          },
++        },
 +      ]),
 +    ),
 +  ),
@@ -2958,7 +3076,7 @@
  export const enabledModules: ModuleEntry[] = [
    { id: 'dashboards', from: '@open-mercato/core' },
    { id: 'auth', from: '@open-mercato/core' },
-@@ -81,6 +256,12 @@
+@@ -81,6 +285,12 @@ export const enabledModules: ModuleEntry[] = [
    { id: 'attachments', from: '@open-mercato/core' },
    { id: 'catalog', from: '@open-mercato/core' },
    { id: 'sales', from: '@open-mercato/core' },
@@ -2971,7 +3089,7 @@
    { id: 'warranty_claims', from: '@open-mercato/core' },
    { id: 'wms', from: '@open-mercato/core' },
    { id: 'api_keys', from: '@open-mercato/core' },
-@@ -135,6 +316,25 @@
+@@ -135,6 +345,25 @@ export const enabledModules: ModuleEntry[] = [
    { id: 'webhooks', from: '@open-mercato/webhooks' },
    { id: 'customer_accounts', from: '@open-mercato/core' },
    { id: 'portal', from: '@open-mercato/core' },
