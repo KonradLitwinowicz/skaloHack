@@ -5,6 +5,7 @@
   "distributor_workspace.dashboard.nextActions.title": "Co dziś zrobić",
   "distributor_workspace.dashboard.stockGaps.description": "Ile pozycji magazynowych jest na progu zamówienia lub poniżej i ile z nich jest już poniżej zapasu bezpieczeństwa.",
   "distributor_workspace.dashboard.stockGaps.title": "Braki magazynowe",
+  "distributor_workspace.nav.dashboard": "Pulpit",
   "distributor_workspace.orderForecast.accuracy.none": "Za mało historii, żeby ocenić skuteczność tej metody.",
   "distributor_workspace.orderForecast.accuracy.scored": "sprawdzonych cykli",
   "distributor_workspace.orderForecast.accuracy.title": "Trafność historyczna",

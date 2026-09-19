@@ -26,6 +26,8 @@ function readAppDictionary(locale: string): Record<string, string> {
   return JSON.parse(raw) as Record<string, string>
 }
 
+const SETTINGS_GROUP_IDS = ['app.nav.groups.pricingPolicy', 'app.nav.groups.serviceCosts']
+
 describe('distributor workspace navigation groups', () => {
   const generatedPaths = readGeneratedBackendRoutePaths()
 
@@ -70,21 +72,32 @@ describe('distributor workspace navigation groups', () => {
    * Only the list screens are compared: each rate table also emits `/create` and `/[id]` routes,
    * which the sidebar never renders (the `[id]` form is filtered on the bracket, and the create
    * form is reached from its list), so grouping them would assert over pages no operator navigates
-   * to from the menu. The point under test is that no rate table escaped the quarterly drawer.
+   * to from the menu. The point under test is that no rate table escaped the two settings groups —
+   * the owner's pricing policy and the cost-to-serve inputs.
    */
-  it('keeps every pricing rate table in the quarterly settings group', () => {
+  it('keeps every pricing rate table in the two settings groups', () => {
     const params = Array.from(generatedPaths).filter((page) =>
       /^\/backend\/pricing\/params\/[^/]+$/.test(page),
     )
-    const settings = distributorNavGroups.find((group) => group.id === 'app.nav.groups.pricingSettings')
-    expect(settings).toBeDefined()
-    const grouped = new Set(settings?.pages.map((page) => page.path) ?? [])
+    const settings = distributorNavGroups.filter((group) => SETTINGS_GROUP_IDS.includes(group.id))
+    expect(settings.map((group) => group.id)).toEqual(SETTINGS_GROUP_IDS)
+    const grouped = new Set(settings.flatMap((group) => group.pages.map((page) => page.path)))
     expect(params.filter((page) => !grouped.has(page))).toEqual([])
     expect(grouped.size).toBe(params.length)
   })
 
-  it('ranks the quarterly settings group behind every other group it declares', () => {
-    expect(distributorNavGroupOrder[distributorNavGroupOrder.length - 1]).toBe('app.nav.groups.pricingSettings')
+  it('ranks the settings groups behind every other group it declares', () => {
+    expect(distributorNavGroupOrder.slice(-SETTINGS_GROUP_IDS.length)).toEqual(SETTINGS_GROUP_IDS)
+  })
+
+  it('opens with the sales loop, in the order the day runs it', () => {
+    expect(distributorNavGroupOrder[0]).toBe('app.nav.groups.sales')
+    const sales = distributorNavGroups.find((group) => group.id === 'app.nav.groups.sales')
+    expect(sales?.pages.map((page) => page.path)).toEqual([
+      '/backend/predicted-orders',
+      '/backend/sales/quotes',
+      '/backend/sales/orders',
+    ])
   })
 
   it('assigns each page to exactly one group', () => {
@@ -112,7 +125,12 @@ describe('distributor workspace navigation groups', () => {
     for (const group of distributorNavGroups) {
       for (const page of group.pages) {
         expect(distributorNavPageOverrides[page.path]).toEqual({
-          metadata: { group: group.defaultName, groupKey: group.id, priority: page.priority },
+          metadata: {
+            group: group.defaultName,
+            groupKey: group.id,
+            priority: page.priority,
+            ...(page.titleKey ? { titleKey: page.titleKey, title: page.title } : {}),
+          },
         })
       }
     }
@@ -144,6 +162,20 @@ describe('distributor workspace navigation groups', () => {
       }
     }
     expect(stale).toEqual([])
+  })
+
+  it('translates every renamed page title in the app dictionaries the sidebar reads', () => {
+    const renamed = distributorNavGroups.flatMap((group) => group.pages.filter((page) => page.titleKey))
+    expect(renamed.length).toBeGreaterThan(0)
+    const untranslated: string[] = []
+    for (const locale of ['en', 'pl']) {
+      const dictionary = readAppDictionary(locale)
+      for (const page of renamed) {
+        const value = dictionary[page.titleKey as string]
+        if (typeof value !== 'string' || value.trim().length === 0) untranslated.push(`${locale}.json:${page.titleKey}`)
+      }
+    }
+    expect(untranslated).toEqual([])
   })
 
   it('translates every group title in the app dictionaries the sidebar reads', () => {
