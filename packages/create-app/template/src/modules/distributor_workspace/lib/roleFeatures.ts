@@ -2,7 +2,8 @@
  * The `distributor` role: an operator of a B2B wholesale distributor who runs the
  * catalog, quotes customers, handles orders and touches stock.
  *
- * Every id below is declared by a core module's `acl.ts`. The set is dependency-closed —
+ * Every id below is declared by a module's `acl.ts` — a core module, the pricing engine, or this
+ * module's own `../acl.ts`. The set is dependency-closed —
  * `dependsOn` chains were resolved so granting it never produces an incoherent ACL.
  *
  * Deliberately excluded, and why:
@@ -24,10 +25,9 @@ export const DISTRIBUTOR_FEATURES = [
   // operator lands on an empty home screen that says "no widgets available for your account" —
   // which reads as a broken install rather than as a missing permission.
   //
-  // The two distributor_workspace widgets (`expiringStock`, `stockGaps`) are the exception: both
-  // read `/api/wms/dashboard/operational`, so they gate on `dashboards.view` + `wms.view` rather
-  // than on a widget-specific id. A synthetic id would add no access boundary the route does not
-  // already enforce, and this module declares no `acl.ts` for the platform to register it from.
+  // The distributor_workspace widgets gate on the data-owning modules' ids (`dashboards.view` +
+  // `wms.view`, plus the sales ids for next-actions) AND on their own `distributor_workspace.widgets.*`
+  // id from `../acl.ts`; both halves are granted below.
   'analytics.view',
   'attachments.view',
   // The messages composer lists backend users as recipients (`GET /api/auth/users`). Read-only:
@@ -61,6 +61,13 @@ export const DISTRIBUTOR_FEATURES = [
   'dashboards.configure',
   'dashboards.view',
   'dictionaries.view',
+  // The module's own ids (`../acl.ts`): required on top of the data-owning ids above and below.
+  'distributor_workspace.forecast.feedback',
+  'distributor_workspace.forecast.view',
+  'distributor_workspace.pricing.compare',
+  'distributor_workspace.widgets.expiring-stock',
+  'distributor_workspace.widgets.next-actions',
+  'distributor_workspace.widgets.stock-gaps',
   // `/backend/messages` sits in this role's daily nav group; it reads `/api/messages/types`
   // (`messages.view`) and a message cannot be written without `messages.compose`.
   'messages.compose',

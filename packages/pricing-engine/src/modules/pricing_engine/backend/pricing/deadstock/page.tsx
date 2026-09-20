@@ -148,7 +148,9 @@ export default function PricingDeadstockPage() {
           <Kpi
             label={t('pricing_engine.deadstock.kpi.monthlyCarry', 'Burning per month')}
             value={formatAmount(totals.monthlyCarry, currencyCode, locale)}
-            hint={t('pricing_engine.deadstock.kpi.monthlyCarryHint', 'Storage plus frozen capital')}
+            hint={t('pricing_engine.deadstock.kpi.perYear', '{amount} a year if nothing is done', {
+              amount: formatAmount(totals.yearlyCarry, currencyCode, locale),
+            })}
           />
           <Kpi
             label={t('pricing_engine.deadstock.kpi.recoverable', 'Recoverable at floor')}
@@ -289,6 +291,14 @@ export default function PricingDeadstockPage() {
                 <TableCell className="text-right">{formatAmount(row.carrying.tiedCapital, currencyCode, locale)}</TableCell>
                 <TableCell className="text-right">
                   <div>{formatAmount(row.carrying.positionPerMonth, currencyCode, locale)}</div>
+                  {/* A monthly rate alone is the wrong unit at both ends of the decision: "can this
+                      wait a week" and "is this worth keeping another year" are different questions. */}
+                  <div className="text-xs text-muted-foreground">
+                    {t('pricing_engine.deadstock.column.perWeekYear', '{week} / week · {year} / year', {
+                      week: formatAmount(row.carrying.positionPerWeek, currencyCode, locale),
+                      year: formatAmount(row.carrying.positionPerYear, currencyCode, locale),
+                    })}
+                  </div>
                   <ConfidenceBadge confidence={row.carrying.confidence} />
                 </TableCell>
                 <TableCell className="text-right">
@@ -318,6 +328,15 @@ export default function PricingDeadstockPage() {
                           label: t('pricing_engine.deadstock.action.openProduct', 'Open product'),
                           href: `/backend/catalog/products/${row.productId}`,
                         },
+                        ...(row.variantId
+                          ? [
+                              {
+                                id: 'open-wms',
+                                label: t('pricing_engine.deadstock.action.openWarehouse', 'Open in warehouse'),
+                                href: `/backend/wms/sku/${row.variantId}`,
+                              },
+                            ]
+                          : []),
                         {
                           id: 'confirm',
                           label: t('pricing_engine.deadstock.action.confirm', 'Confirm'),

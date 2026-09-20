@@ -70,7 +70,9 @@ const windowSchema = z.object({
 
 const carryingSchema = z.object({
   perUnitPerMonth: z.string(),
+  positionPerWeek: z.string(),
   positionPerMonth: z.string(),
+  positionPerYear: z.string(),
   carriedToDate: z.string(),
   tiedCapital: z.string(),
   confidence: z.enum(['measured', 'estimated', 'default']),
@@ -137,7 +139,10 @@ export type DeadstockRow = z.infer<typeof deadstockRowSchema>
 export const deadstockTotalsSchema = z.object({
   /** Purchase value of every position carrying a verdict. The headline figure. */
   tiedCapital: z.string(),
+  weeklyCarry: z.string(),
   monthlyCarry: z.string(),
+  /** The figure that turns an expense into a decision. */
+  yearlyCarry: z.string(),
   recoverableAtFloor: z.string(),
   atRiskCount: z.number().int(),
   catalogCount: z.number().int(),
@@ -178,4 +183,20 @@ export type DeadstockDecisionCreateInput = z.infer<typeof deadstockDecisionCreat
 export const deadstockDecisionResponseSchema = z.object({
   ok: z.literal(true),
   decision: decisionSchema,
+})
+
+/**
+ * Totals without rows, for KPI tiles.
+ *
+ * A separate response rather than a flag on the list, because it is gated on a DIFFERENT feature:
+ * `pricing.deadstock.summary` may be granted to a warehouse role on its own, and that role must not
+ * reach an endpoint capable of returning unit costs. The shape enforces it — no row can appear here
+ * however the query is written.
+ */
+export const deadstockSummaryResponseSchema = z.object({
+  totals: deadstockTotalsSchema,
+  asOf: z.string(),
+  currencyCode: z.string(),
+  warehouseCostConfigured: z.boolean(),
+  warnings: z.array(z.string()),
 })

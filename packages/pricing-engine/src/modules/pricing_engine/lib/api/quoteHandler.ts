@@ -101,6 +101,11 @@ export async function handleQuoteRequest(
       mode: 'shadow',
     }
 
+    // The desk re-prices on every keystroke and aborts the basket it has just replaced. Pricing a
+    // basket whose client has already hung up is pure cost: it holds a pool connection that the
+    // request the operator IS waiting for needs.
+    if (isClientGone(req)) return abortedResponse()
+
     const result = await pricingService.quote(context, {
       persist: options.persist,
       triggeredBy: options.triggeredBy,
@@ -112,6 +117,19 @@ export async function handleQuoteRequest(
   } catch (err) {
     return toPricingErrorResponse(err, 'Pricing quote failed')
   }
+}
+
+/** True once the caller has hung up — `AbortSignal` from the browser, or a closed connection. */
+export function isClientGone(req: Request): boolean {
+  return req.signal?.aborted === true
+}
+
+/**
+ * 499, the status nginx uses for "client closed request". Nothing reads this body — the caller is
+ * gone — but the route has to answer something, and a 200 with an empty quote would be a lie.
+ */
+export function abortedResponse(): Response {
+  return NextResponse.json({ error: 'pricing_engine.errors.clientAborted' }, { status: 499 })
 }
 
 // One error contract for every pipeline-backed route: the advise route answers with the same

@@ -25,6 +25,7 @@ import {
   versionRow,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/packaging-costs`.
@@ -95,6 +96,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, PackagingCostListQuer
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('packaging_cost'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingPackagingCost, PackagingCostRow>(payload, ctx.query, {
         mapItem: toPackagingCostRow,

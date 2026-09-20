@@ -12,7 +12,7 @@ const widget: DashboardWidgetModule = {
     // not the other tells the operator the list is shorter than it is.
     description:
       'Ranked shortlist of the work that cannot wait: stock about to expire, quote requests with no answer yet, quotes with no customer reply, orders still waiting to be picked, and stock below the safety level.',
-    features: ['dashboards.view', 'wms.view', 'sales.quotes.view', 'sales.orders.view'],
+    features: ['dashboards.view', 'wms.view', 'sales.quotes.view', 'sales.orders.view', 'distributor_workspace.widgets.next-actions'],
     defaultSize: 'md',
     defaultEnabled: true,
     // Placed first: the operator's shortlist of work that cannot wait is the reason

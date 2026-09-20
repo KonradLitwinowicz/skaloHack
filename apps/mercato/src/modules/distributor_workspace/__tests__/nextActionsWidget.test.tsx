@@ -532,6 +532,7 @@ describe('next actions widget metadata', () => {
       'wms.view',
       'sales.quotes.view',
       'sales.orders.view',
+      'distributor_workspace.widgets.next-actions',
     ])
     expect(nextActionsWidget.metadata.defaultPriority).toBe(100)
   })

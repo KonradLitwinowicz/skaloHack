@@ -13,6 +13,11 @@ import type { Suggestion } from '../schemas'
 
 const KIND = 'cheaper_equivalent' as const
 const MAX_SIBLINGS_PER_LINE = 3
+// A sibling more than half cheaper is not a substitute. Owner rule (2026-09-19): such a product is
+// a freebie or a promotional add-on that happens to share the category, and proposing a 1,38 PLN
+// item in place of a 75 PLN one reads as a mistake, not as advice. Compared on the customer price
+// the engine actually produced, so a cheap purchase cost that prices up normally still qualifies.
+const MIN_EQUIVALENT_PRICE_SHARE = toDecimal('0.5')
 
 /** Mirrors `product_cost`: list cost less the current annual tier discount. Do not re-derive it. */
 function effectiveCost(product: CatalogProductSnapshot): Decimal | null {
@@ -68,6 +73,7 @@ export async function generateCheaperEquivalentSuggestions(run: AdvisorRun): Pro
       const priceBefore = toDecimal(baselineLine.unitPriceNet)
       const priceAfter = toDecimal(variantLine.unitPriceNet)
       if (priceAfter >= priceBefore) continue
+      if (priceAfter < mul(priceBefore, MIN_EQUIVALENT_PRICE_SHARE)) continue
 
       suggestions.push(
         buildSuggestion(run, {

@@ -6,7 +6,7 @@ import { readJsonSafe } from '@open-mercato/shared/lib/http/readJsonSafe'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { adviseRequestSchema, adviseResponseSchema, type Suggestion } from '../../lib/advisor/schemas'
 import { resolvePricingRouteContext } from '../../lib/api/context'
-import { serializeQuoteResult, toPricingErrorResponse } from '../../lib/api/quoteHandler'
+import { abortedResponse, isClientGone, serializeQuoteResult, toPricingErrorResponse } from '../../lib/api/quoteHandler'
 import type { PricingAdvisorService } from '../../services/pricingAdvisorService'
 import type { PricingContext } from '../../lib/types'
 
@@ -72,6 +72,9 @@ export async function POST(req: Request): Promise<Response> {
       date: parsed.date ?? new Date(),
       mode: 'shadow',
     }
+
+    // Same reason as simulate: the desk abandons the advisor run for the basket it just replaced.
+    if (isClientGone(req)) return abortedResponse()
 
     const result = await advisor.advise(context, {
       advisor: parsed.advisor,

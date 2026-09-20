@@ -19,6 +19,7 @@ import { z } from 'zod'
 import { I18nProvider, type Dict } from '@open-mercato/shared/lib/i18n/context'
 import type { Locale } from '@open-mercato/shared/lib/i18n/config'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+import { clearSharedApiGetCache } from '@open-mercato/ui/backend/utils/sharedApiGet'
 import type { DashboardWidgetComponentProps, DashboardLayoutItem } from '@open-mercato/shared/modules/dashboard/widgets'
 import expiringStockWidget from '../widgets/dashboard/expiring-stock/widget'
 import stockGapsWidget from '../widgets/dashboard/stock-gaps/widget'
@@ -109,6 +110,9 @@ function lot(overrides: Partial<ExpiringStockLot> & Pick<ExpiringStockLot, 'id' 
 
 beforeEach(() => {
   apiCallMock.mockReset()
+  // The two operational-dashboard widgets share one cached GET at runtime; without this
+  // the response mocked by the previous test would still be serving the next one.
+  clearSharedApiGetCache()
 })
 
 describe('expiring stock helpers', () => {
@@ -247,12 +251,12 @@ describe('expiring stock widget', () => {
  */
 describe('widget metadata', () => {
   it.each([
-    ['distributor_workspace.dashboard.expiringStock', expiringStockWidget],
-    ['distributor_workspace.dashboard.stockGaps', stockGapsWidget],
-  ])('%s is enabled by default and gated on the features its data route requires', (id, widget) => {
+    ['distributor_workspace.dashboard.expiringStock', expiringStockWidget, 'distributor_workspace.widgets.expiring-stock'],
+    ['distributor_workspace.dashboard.stockGaps', stockGapsWidget, 'distributor_workspace.widgets.stock-gaps'],
+  ])('%s is enabled by default and gated on the features its data route requires plus its own id', (id, widget, ownFeature) => {
     expect(widget.metadata.id).toBe(id)
     expect(widget.metadata.defaultEnabled).toBe(true)
-    expect(widget.metadata.features).toEqual(['dashboards.view', 'wms.view'])
+    expect(widget.metadata.features).toEqual(['dashboards.view', 'wms.view', ownFeature])
     expect(widget.metadata.supportsRefresh).toBe(true)
   })
 

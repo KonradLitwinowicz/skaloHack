@@ -192,6 +192,16 @@ describe('cheaper_equivalent', () => {
     )
   })
 
+  it('drops a sibling priced below half of the current line — a freebie, not a substitute', async () => {
+    const sibling = buildProduct({
+      productId: SIBLING_PRODUCT_ID,
+      sku: 'CHEM-001',
+      purchase: { ...buildProduct().purchase!, lastDeliveryUnitCost: '2.0000' },
+    })
+    const run = await buildRun({ siblings: [sibling] })
+    expect(await generateCheaperEquivalentSuggestions(run)).toEqual([])
+  })
+
   it('ignores a sibling that is not actually cheaper', async () => {
     const sibling = buildProduct({
       productId: SIBLING_PRODUCT_ID,
@@ -204,6 +214,59 @@ describe('cheaper_equivalent', () => {
 })
 
 describe('volume sensitivity', () => {
+  /**
+   * The rung is a button that sets this line's quantity on THIS basket, so the price on it has to
+   * be the price the basket will show once it is clicked.
+   *
+   * Priced as a standalone single-line document instead, the whole per-document and per-stop cost
+   * fell on that one line: a desk basket showed a line at its real price while the "×1" rung under
+   * it quoted an order of magnitude more for the quantity the line already had.
+   */
+  it('quotes each rung inside the basket, so the current quantity matches the basket price', async () => {
+    const sibling = buildProduct({ productId: SIBLING_PRODUCT_ID, sku: 'CHEM-100' })
+    const lines: PricingBasketLine[] = [
+      { productId: PRODUCT_ID, sku: 'CHEM-014', quantity: '24' },
+      { productId: SIBLING_PRODUCT_ID, sku: 'CHEM-100', quantity: '200' },
+    ]
+    const run = await buildRun({
+      siblings: [sibling],
+      context: { lines },
+      advisor: { quantityLadder: ['1', '24'] },
+    })
+
+    const sensitivity = await computeVolumeSensitivity(run, PRODUCT_ID)
+    const current = sensitivity!.points.find((point) => point.quantity === '24')
+
+    expect(current?.unitPriceNet).toBe(run.baseline.lines[0].unitPriceNet)
+
+    // And the two really are different numbers here, so the assertion above has something to hold:
+    // the same quantity priced as its own document carries the whole per-document cost.
+    const alone = await run.price([{ productId: PRODUCT_ID, sku: 'CHEM-014', quantity: '24' }])
+    expect(alone.lines[0].unitPriceNet).not.toBe(current?.unitPriceNet)
+  })
+
+  it('leaves the other lines of the basket alone while it walks one line', async () => {
+    const sibling = buildProduct({ productId: SIBLING_PRODUCT_ID, sku: 'CHEM-100' })
+    const lines: PricingBasketLine[] = [
+      { productId: PRODUCT_ID, sku: 'CHEM-014', quantity: '24' },
+      { productId: SIBLING_PRODUCT_ID, sku: 'CHEM-100', quantity: '200' },
+    ]
+    const run = await buildRun({
+      siblings: [sibling],
+      context: { lines },
+      advisor: { quantityLadder: ['1', '240'] },
+    })
+
+    const walked = await computeVolumeSensitivity(run, PRODUCT_ID)
+    const other = await computeVolumeSensitivity(run, SIBLING_PRODUCT_ID)
+
+    // Each product reports its own line, never the line that happens to sit first in the basket.
+    expect(walked!.productId).toBe(PRODUCT_ID)
+    expect(other!.productId).toBe(SIBLING_PRODUCT_ID)
+    expect(walked!.points.map((point) => point.quantity)).toContain('24')
+    expect(other!.points.map((point) => point.quantity)).toContain('200')
+  })
+
   it('falls monotonically in unit cost and rises in line profit across the ladder', async () => {
     const run = await buildRun({ advisor: { quantityLadder: ['1', '6', '24', '96', '240'] } })
     const sensitivity = await computeVolumeSensitivity(run, PRODUCT_ID)

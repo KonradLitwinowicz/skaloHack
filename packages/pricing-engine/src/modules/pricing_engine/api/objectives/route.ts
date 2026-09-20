@@ -30,6 +30,7 @@ import {
   versionRow,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the generator resolves the served path by STATIC analysis of this object literal and
@@ -112,6 +113,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, ObjectiveListQuery>({
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('component_param'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingComponentParam, ObjectiveRow>(payload, ctx.query, {
         mapItem: toObjectiveRow,

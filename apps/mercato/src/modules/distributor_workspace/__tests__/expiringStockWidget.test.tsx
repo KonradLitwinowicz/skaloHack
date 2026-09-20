@@ -19,6 +19,7 @@ import { z } from 'zod'
 import { I18nProvider, type Dict } from '@open-mercato/shared/lib/i18n/context'
 import type { Locale } from '@open-mercato/shared/lib/i18n/config'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+import { clearSharedApiGetCache } from '@open-mercato/ui/backend/utils/sharedApiGet'
 import type { DashboardWidgetComponentProps, DashboardLayoutItem } from '@open-mercato/shared/modules/dashboard/widgets'
 import ExpiringStockWidget, {
   countRemainingLots,
@@ -114,6 +115,9 @@ function buildLots(count: number): ExpiringStockLot[] {
 
 beforeEach(() => {
   apiCallMock.mockReset()
+  // The two operational-dashboard widgets share one cached GET at runtime; without this
+  // the response mocked by the previous test would still be serving the next one.
+  clearSharedApiGetCache()
 })
 
 describe('expiring stock row identity', () => {

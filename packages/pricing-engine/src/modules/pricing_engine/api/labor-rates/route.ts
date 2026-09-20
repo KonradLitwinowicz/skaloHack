@@ -25,6 +25,7 @@ import {
   versionRow,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/labor-rates`.
@@ -95,6 +96,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, LaborRateListQuery>({
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('labor_rate'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingLaborRate, LaborRateRow>(payload, ctx.query, {
         mapItem: toLaborRateRow,

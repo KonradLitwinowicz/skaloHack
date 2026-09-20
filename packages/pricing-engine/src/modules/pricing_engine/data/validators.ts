@@ -18,6 +18,12 @@ export const quoteLineSchema = z.object({
   quantity: positiveDecimalString,
   enteredQuantity: decimalString.nullable().optional(),
   enteredUnitCode: z.string().min(1).nullable().optional(),
+  // Purchase cost already booked for this line (e.g. the invoice cost on a document being
+  // re-priced). When present, `product_cost` uses it verbatim instead of the last delivery.
+  purchaseUnitCostNet: decimalString
+    .refine((value) => Number(value) >= 0, { message: 'pricing_engine.errors.invalidDecimal' })
+    .nullable()
+    .optional(),
 })
 
 export const quoteRequestSchema = z.object({

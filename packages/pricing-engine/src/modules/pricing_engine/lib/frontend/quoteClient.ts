@@ -33,13 +33,21 @@ export type SimulateOutcome =
  *
  * Every line's breakdown is piped through `withRunningTotals` because `PriceWaterfall` reads
  * `component.runningTotal`, which the API does not send.
+ *
+ * `signal` lets a caller that re-prices on every keystroke retire the request it has just
+ * superseded. Without it the server keeps pricing a basket nobody is looking at any more, holding
+ * a pool connection while it does — and the answer the operator IS waiting for queues behind it.
  */
-export async function simulateQuote(body: SimulateBody): Promise<SimulateOutcome> {
+export async function simulateQuote(
+  body: SimulateBody,
+  signal?: AbortSignal,
+): Promise<SimulateOutcome> {
   try {
     const call = await apiCall<QuoteResponse & { error?: string }>(SIMULATE_PATH, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+      signal,
     })
     if (!call.ok || !call.result) {
       return { ok: false, errorKey: call.result?.error ?? QUOTE_FAILED_KEY }

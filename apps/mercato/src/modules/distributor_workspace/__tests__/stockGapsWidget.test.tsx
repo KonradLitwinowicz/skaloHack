@@ -18,6 +18,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import { z } from 'zod'
 import { I18nProvider, type Dict } from '@open-mercato/shared/lib/i18n/context'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+import { clearSharedApiGetCache } from '@open-mercato/ui/backend/utils/sharedApiGet'
 import type { DashboardWidgetComponentProps, DashboardLayoutItem } from '@open-mercato/shared/modules/dashboard/widgets'
 import stockGapsWidget from '../widgets/dashboard/stock-gaps/widget'
 import StockGapsWidget, {
@@ -177,6 +178,9 @@ const LIVE_PAYLOAD = {
 
 beforeEach(() => {
   apiCallMock.mockReset()
+  // The two operational-dashboard widgets share one cached GET at runtime; without this
+  // the response mocked by the previous test would still be serving the next one.
+  clearSharedApiGetCache()
 })
 
 describe('resolveGapBreakdown', () => {

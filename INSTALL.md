@@ -36,10 +36,16 @@ w WMS pod wykrywanie zapasu martwego.
 cd <open-mercato> && git apply /sciezka/do/patches/open-mercato-0.7.0-integration.patch
 ```
 
-Łatka obejmuje **46 plików**: 40 zmodyfikowanych i 6 nowych, tworzonych przez
-`git apply` (m.in. `packages/ui/src/backend/dashboard/{WidgetList.tsx,useDashboardColumns.ts,widgetIcon.tsx}`
-oraz trzy zestawy testów). Sprawdzona pod `git apply --check` na czystym tagu
-`v0.7.0` — nakłada się bez konfliktów.
+Łatka obejmuje **54 pliki**: 45 zmodyfikowanych i 9 nowych, tworzonych przez
+`git apply` (m.in. `packages/ui/src/backend/dashboard/{WidgetList.tsx,useDashboardColumns.ts,widgetIcon.tsx}`,
+`packages/ui/src/backend/utils/sharedApiGet.ts` oraz cztery zestawy testów).
+Sprawdzona pod `git apply --check` na czystym tagu `v0.7.0` — nakłada się bez konfliktów.
+
+Poza rejestracją modułów niesie też paczkę optymalizacji ładowania: deduplikację
+równoległych żądań GET, liczenie wskaźników magazynowych w SQL zamiast hydratowania
+tysięcy encji oraz poprawkę keep-alive w strumieniach SSE (`packages/events/…/stream/route.ts`
+i portalowy odpowiednik) — heartbeat szedł jako komentarz, którego `EventSource`
+nie zgłasza, więc każdy bridge rozłączał się co 45 sekund w każdej otwartej karcie.
 
 Świadomie **nie** zawiera dwóch plików: `packages/core/src/modules/wms/migrations/.snapshot-open-mercato.json`
 (szum regeneratora — moduł `wms` nie ma nowej migracji, więc wzięcie tego
@@ -134,7 +140,8 @@ przed jakimkolwiek wystawieniem instancji na zewnątrz trzeba je zmienić.
 | `packages/pricing-engine/` | Silnik wyceny cost-to-serve, doradca, wykrywanie zapasu martwego |
 | `apps/mercato/src/modules/distributor_workspace/` | Workspace dystrybutora, rola `distributor`, portal zamawiania, prognoza zamówień, 9 seederów HoReCa |
 | `packages/create-app/template/src/modules/distributor_workspace/` | Ten sam moduł w szablonie `create-app` (wymóg Template Sync Checklist) |
-| `patches/open-mercato-0.7.0-integration.patch` | 46 plików bazowych: 40 zmodyfikowanych, 6 nowych |
+| `patches/open-mercato-0.7.0-integration.patch` | 54 pliki bazowe: 45 zmodyfikowanych, 9 nowych |
+| `Silnik-wyceny-kosztowej-dokumentacja.pdf` | Dokumentacja silnika wyceny |
 | `.ai/specs/` | Specyfikacje czterech obszarów |
 | `.ai/lessons/`, `.ai/handoff/` | Wnioski z wdrożenia i notatka przekazania |
 | `docs/SPEC.md` | Specyfikacja silnika wyceny |

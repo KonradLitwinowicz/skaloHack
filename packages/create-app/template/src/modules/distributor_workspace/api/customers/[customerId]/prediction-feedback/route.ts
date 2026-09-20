@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
+import {
+  invalidateForecastCacheForTenant,
+  resolveForecastCache,
+  type ForecastCacheService,
+} from '../../../../lib/orderForecastCache'
 import { getAuthFromRequest } from '@open-mercato/shared/lib/auth/server'
 import { resolveOrganizationScopeForRequest } from '@open-mercato/core/modules/directory/utils/organizationScope'
 import { CrudHttpError, isCrudHttpError } from '@open-mercato/shared/lib/crud/errors'
@@ -38,11 +43,11 @@ const DEFAULT_VALIDITY_DAYS: Record<PredictionFeedbackKind, number | null> = {
 export const metadata = {
   POST: {
     requireAuth: true,
-    requireFeatures: ['customers.companies.manage', 'sales.orders.view'],
+    requireFeatures: ['customers.companies.manage', 'sales.orders.view', 'distributor_workspace.forecast.feedback'],
   },
   DELETE: {
     requireAuth: true,
-    requireFeatures: ['customers.companies.manage', 'sales.orders.view'],
+    requireFeatures: ['customers.companies.manage', 'sales.orders.view', 'distributor_workspace.forecast.feedback'],
   },
 }
 
@@ -51,6 +56,7 @@ const okSchema = z.object({ ok: z.literal(true), productKey: z.string() })
 const errorSchema = z.object({ error: z.string() })
 
 type RouteScope = {
+  cache: ForecastCacheService | null
   em: EntityManager
   organizationId: string
   tenantId: string
@@ -69,6 +75,7 @@ async function resolveScope(request: Request): Promise<RouteScope> {
     throw new CrudHttpError(401, { error: 'Unauthorized' })
   }
   return {
+    cache: resolveForecastCache(container),
     em: (container.resolve('em') as EntityManager).fork(),
     organizationId,
     tenantId: auth.tenantId,
@@ -133,6 +140,9 @@ export async function POST(request: Request, context: { params?: { customerId?: 
       )
     }
     await scope.em.flush()
+    // Notes feed the forecast, and they do not travel as sales events, so the cached forecast is
+    // retired here rather than waiting out its TTL.
+    await invalidateForecastCacheForTenant(scope.cache, scope.tenantId)
 
     return NextResponse.json(okSchema.parse({ ok: true, productKey }))
   } catch (error) {
@@ -164,6 +174,7 @@ export async function DELETE(request: Request, context: { params?: { customerId?
       customerEntityId: customerId,
       productKey,
     })
+    await invalidateForecastCacheForTenant(scope.cache, scope.tenantId)
 
     return NextResponse.json(okSchema.parse({ ok: true, productKey }))
   } catch (error) {

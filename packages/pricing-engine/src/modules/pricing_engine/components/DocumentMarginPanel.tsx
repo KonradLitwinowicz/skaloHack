@@ -103,11 +103,11 @@ export function DocumentMarginPanel({
         <Alert status="warning" style="lighter" size="sm">
           <AlertTitle>{t('pricing_engine.margin.warnings.title', 'What this price could not account for')}</AlertTitle>
           <AlertDescription>
-            <ul className="space-y-1">
-              {quoteWarnings.map((warning) => (
-                <li key={warning}>{t(warning, warning)}</li>
-              ))}
-            </ul>
+            {quoteWarnings.map((warning) => (
+              <span key={warning} className="block">
+                {t(warning, warning)}
+              </span>
+            ))}
           </AlertDescription>
         </Alert>
       ) : null}

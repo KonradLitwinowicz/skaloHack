@@ -236,13 +236,13 @@ describe('marginFromMarkup / markupFromMargin', () => {
 
 describe('formatMoney', () => {
   const cases: Array<{ value: string; currencyCode: string; expected: string }> = [
-    { value: '1234.56', currencyCode: 'PLN', expected: '1 234,5600 PLN' },
-    { value: '0', currencyCode: 'PLN', expected: '0,0000 PLN' },
-    { value: '999.9999', currencyCode: 'EUR', expected: '999,9999 EUR' },
-    { value: '1234567.891', currencyCode: 'PLN', expected: '1 234 567,8910 PLN' },
-    { value: '-1234.5', currencyCode: 'PLN', expected: '-1 234,5000 PLN' },
-    { value: 'not-a-number', currencyCode: 'PLN', expected: '0,0000 PLN' },
-    { value: '12.34', currencyCode: '', expected: '12,3400' },
+    { value: '1234.56', currencyCode: 'PLN', expected: '1 234,56 PLN' },
+    { value: '0', currencyCode: 'PLN', expected: '0,00 PLN' },
+    { value: '999.9999', currencyCode: 'EUR', expected: '1 000,00 EUR' },
+    { value: '1234567.891', currencyCode: 'PLN', expected: '1 234 567,89 PLN' },
+    { value: '-1234.5', currencyCode: 'PLN', expected: '-1 234,50 PLN' },
+    { value: 'not-a-number', currencyCode: 'PLN', expected: '0,00 PLN' },
+    { value: '12.34', currencyCode: '', expected: '12,34' },
   ]
 
   it.each(cases)('formats $value as $expected', ({ value, currencyCode, expected }) => {

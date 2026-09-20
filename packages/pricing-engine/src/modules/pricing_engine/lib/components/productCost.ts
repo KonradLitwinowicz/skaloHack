@@ -22,6 +22,33 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   const purchase = product?.purchase ?? null
   const warnings: string[] = []
 
+  // A line that arrives with its own purchase cost — the invoice cost booked on the document being
+  // re-priced — is costed at exactly that figure. Re-pricing a historical WZ must show the same
+  // goods cost the source ERP shows for it; a newer delivery is a replacement cost, and comparing
+  // one against the other reports a difference in valuation method as if it were a difference in
+  // profit. The figure is measured: it is what was paid, not a guess.
+  const documentCost = line.purchaseUnitCostNet ?? null
+  if (documentCost !== null) {
+    const cost = toDecimal(documentCost)
+    return {
+      code: PRODUCT_COST_CODE,
+      labelKey: 'pricing_engine.components.productCost.label',
+      effect: 'add',
+      value: money(cost),
+      inputs: {
+        productId: line.productId,
+        sku: line.sku ?? product?.sku ?? null,
+        purchaseUnitCostNet: documentCost,
+        source: 'document',
+      },
+      params: {},
+      explainKey: 'pricing_engine.components.productCost.explain.document',
+      explainValues: { cost: money(cost), currency: context.currencyCode },
+      confidence: 'measured',
+      warnings,
+    }
+  }
+
   if (!purchase || purchase.lastDeliveryUnitCost === null) {
     // TODO(data-source): no purchase position for this product. No module in Open Mercato stores
     // a purchase cost, so there is nothing to fall back to — the engine must say so rather than
@@ -45,8 +72,19 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
   const tierDiscountFactor = percentToFactor(purchase.currentTierDiscount)
   const effectiveCost = mul(listCost, sub(ONE, tierDiscountFactor))
 
+  // The freshness window is tenant configuration when a `product_cost` parameter carries
+  // `staleAfterDays`; a wholesaler with slow-moving lines legitimately trusts an older delivery
+  // than a grocer does. The constant is only the fallback.
+  const payload = deps.params.componentPayload(PRODUCT_COST_CODE, {
+    productId: line.productId,
+    productGroupCode: product?.productGroupCode ?? null,
+    customerId: context.customerId ?? null,
+    customerGroupCode: context.customerGroupCode ?? null,
+  }) as { staleAfterDays?: unknown } | null
+  const configuredStaleDays = Number(payload?.staleAfterDays)
+  const staleAfterDays = Number.isFinite(configuredStaleDays) && configuredStaleDays > 0 ? configuredStaleDays : STALE_PURCHASE_COST_DAYS
   const ageDays = purchase.lastDeliveryAt ? daysBetween(purchase.lastDeliveryAt, context.date) : null
-  const stale = ageDays === null || ageDays > STALE_PURCHASE_COST_DAYS
+  const stale = ageDays === null || ageDays > staleAfterDays
   if (stale) warnings.push('pricing_engine.warnings.purchaseCostStale')
 
   if (purchase.lastDeliveryQuantity && purchase.soldQuantityPeriod) {
@@ -76,6 +114,7 @@ async function compute(args: ComponentComputeArgs): Promise<ComponentResult> {
       currentTierCode: purchase.currentTierCode,
       currentTierDiscount: purchase.currentTierDiscount,
       annualVolume: purchase.annualVolume,
+      staleAfterDays,
     },
     explainKey: stale
       ? 'pricing_engine.components.productCost.explain.stale'

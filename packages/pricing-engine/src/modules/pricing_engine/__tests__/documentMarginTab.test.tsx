@@ -153,7 +153,7 @@ describe('DocumentMarginPanel states', () => {
     )
     const text = container.textContent ?? ''
     // 332 revenue - 200 cost: the API sends no profit field, the panel derives it.
-    expect(text).toContain('132,0000 PLN')
+    expect(text).toContain('132,00 PLN')
     expect(text).toContain('39.76')
     expect(getByText('What this price assumes')).toBeTruthy()
     // The target-margin component runs on a default, so it must not read as measured.

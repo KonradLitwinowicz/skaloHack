@@ -43,7 +43,9 @@ export function toDeadstockRow(position: DeadstockPosition, asOf: Date): Deadsto
     windows: metrics.windows,
     carrying: {
       perUnitPerMonth: money(carrying.perUnitPerMonth),
+      positionPerWeek: money(carrying.positionPerWeek),
       positionPerMonth: money(carrying.positionPerMonth),
+      positionPerYear: money(carrying.positionPerYear),
       carriedToDate: money(carrying.carriedToDate),
       tiedCapital: money(carrying.tiedCapital),
       confidence: carrying.confidence,
@@ -187,7 +189,9 @@ export function deadstockTotals(rows: DeadstockRow[], stockedCount: number, cata
     never_sold: 0,
   }
   let tiedCapital = ZERO
+  let weeklyCarry = ZERO
   let monthlyCarry = ZERO
+  let yearlyCarry = ZERO
   let recoverable = ZERO
   let atRiskCount = 0
   let suppressedCount = 0
@@ -200,13 +204,17 @@ export function deadstockTotals(rows: DeadstockRow[], stockedCount: number, cata
     if (!row.markdown) continue
     atRiskCount += 1
     tiedCapital = add(tiedCapital, toDecimal(row.carrying.tiedCapital))
+    weeklyCarry = add(weeklyCarry, toDecimal(row.carrying.positionPerWeek))
     monthlyCarry = add(monthlyCarry, toDecimal(row.carrying.positionPerMonth))
+    yearlyCarry = add(yearlyCarry, toDecimal(row.carrying.positionPerYear))
     recoverable = add(recoverable, toDecimal(row.markdown.recoverableAtFloor))
   }
 
   return {
     tiedCapital: money(tiedCapital),
+    weeklyCarry: money(weeklyCarry),
     monthlyCarry: money(monthlyCarry),
+    yearlyCarry: money(yearlyCarry),
     recoverableAtFloor: money(recoverable),
     atRiskCount,
     catalogCount,

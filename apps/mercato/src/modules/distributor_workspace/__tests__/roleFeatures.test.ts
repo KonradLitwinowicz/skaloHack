@@ -13,7 +13,10 @@ import { features as searchFeatures } from '@open-mercato/search/modules/search/
 import { features as shippingFeatures } from '@open-mercato/core/modules/shipping_carriers/acl'
 import { features as wmsFeatures } from '@open-mercato/core/modules/wms/acl'
 import { features as pricingFeatures } from '@open-mercato/pricing-engine/modules/pricing_engine/acl'
+import { features as distributorFeatures } from '../acl'
 import { DISTRIBUTOR_FEATURES, DISTRIBUTOR_ROLE } from '../lib/roleFeatures'
+import fs from 'node:fs'
+import path from 'node:path'
 
 /**
  * A role is only a bundle of feature ids. Nothing in the platform validates that a granted id
@@ -31,6 +34,7 @@ const ALL_FEATURES: readonly DeclaredFeature[] = [
   ...customersFeatures,
   ...dashboardsFeatures,
   ...dictionariesFeatures,
+  ...distributorFeatures,
   ...messagesFeatures,
   ...notificationsFeatures,
   ...perspectivesFeatures,
@@ -93,5 +97,52 @@ describe(`${DISTRIBUTOR_ROLE} role features`, () => {
     ]
     const absent = required.filter((id) => !(DISTRIBUTOR_FEATURES as readonly string[]).includes(id))
     expect(absent).toEqual([])
+  })
+})
+
+/**
+ * Structural, not behavioural: route files pull server-only dependencies into jest, so the gates
+ * are read from source. Every backend gate in this module must carry one of the module's own ids
+ * on top of the data-owning modules' ids — that is the whole point of `acl.ts`.
+ */
+describe('distributor_workspace own feature ids', () => {
+  const moduleRoot = path.resolve(__dirname, '..')
+  const gatedFiles = ['route.ts', 'page.meta.ts', 'widget.ts']
+  // The sidebar entry only re-labels the core dashboard; it stays on `dashboards.view` alone.
+  const exempt = new Set([path.join(moduleRoot, 'widgets', 'injection', 'sidebar-dashboard', 'widget.ts')])
+  const ownIds = new Set(distributorFeatures.map((feature) => feature.id))
+
+  const walk = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name)
+      return entry.isDirectory() ? walk(full) : gatedFiles.includes(entry.name) ? [full] : []
+    })
+  const files = ['api', 'backend', 'widgets']
+    .flatMap((dir) => walk(path.join(moduleRoot, dir)))
+    .filter((file) => !exempt.has(file) && !file.includes(`${path.sep}portal${path.sep}`))
+
+  const gates = files.flatMap((file) => {
+    const source = fs.readFileSync(file, 'utf8')
+    const pattern = /\b(?:requireFeatures|features):\s*\[([^\]]*)\]/g
+    return Array.from(source.matchAll(pattern), (match) => ({
+      file: path.relative(moduleRoot, file),
+      ids: Array.from(match[1].matchAll(/'([^']+)'/g), (idMatch) => idMatch[1]),
+    }))
+  })
+
+  it('finds the gates it is meant to check', () => {
+    expect(gates.length).toBeGreaterThanOrEqual(12)
+  })
+
+  it('every backend gate requires one of the module own ids on top of the data-owning ids', () => {
+    const missingOwnId = gates.filter((gate) => !gate.ids.some((id) => ownIds.has(id)))
+    expect(missingOwnId).toEqual([])
+    const ownOnly = gates.filter((gate) => gate.ids.every((id) => ownIds.has(id)))
+    expect(ownOnly).toEqual([])
+  })
+
+  it('grants the distributor role every own id', () => {
+    const granted = new Set<string>(DISTRIBUTOR_FEATURES)
+    expect(Array.from(ownIds).filter((id) => !granted.has(id))).toEqual([])
   })
 })

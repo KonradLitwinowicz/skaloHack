@@ -59,6 +59,31 @@ describe('product_cost', () => {
     expect(result.confidence).toBe('default')
     expect(result.warnings).toContain('pricing_engine.warnings.purchaseCostMissing')
   })
+
+  it('uses the purchase cost carried on the line verbatim, ahead of any delivery', async () => {
+    const base = args()
+    const stale = new Date(QUOTE_DATE.getTime() - (STALE_PURCHASE_COST_DAYS + 5) * 86_400_000)
+    const purchase = { ...buildDeps().catalog.byProductId.get(PRODUCT_ID)!.purchase!, lastDeliveryAt: stale, currentTierDiscount: '6.0000' }
+    const result = await productCostComponent.compute({
+      ...args({ product: { purchase } }),
+      line: { ...base.line, purchaseUnitCostNet: '120.0000' },
+    })
+    expect(result.value).toBe('120.0000')
+    expect(result.confidence).toBe('measured')
+    expect(result.explainKey).toBe('pricing_engine.components.productCost.explain.document')
+    expect(result.warnings ?? []).toEqual([])
+    expect(result.inputs.source).toBe('document')
+  })
+
+  it('still costs a document line when no purchase position exists at all', async () => {
+    const base = args({ product: { purchase: null } })
+    const result = await productCostComponent.compute({
+      ...base,
+      line: { ...base.line, purchaseUnitCostNet: '7.5000' },
+    })
+    expect(result.value).toBe('7.5000')
+    expect(result.warnings ?? []).not.toContain('pricing_engine.warnings.purchaseCostMissing')
+  })
 })
 
 describe('operational_cost_base', () => {

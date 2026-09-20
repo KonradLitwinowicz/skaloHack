@@ -25,6 +25,7 @@ import {
   versionRow,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/margin-rules`.
@@ -116,6 +117,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, MarginRuleListQuery>(
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('component_param'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingComponentParam, MarginRuleRow>(payload, ctx.query, {
         mapItem: toMarginRuleRow,

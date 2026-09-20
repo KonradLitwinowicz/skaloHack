@@ -39,6 +39,7 @@ export const integrationMeta = {
 
 const LIST_API = '/api/pricing/deadstock'
 const DECISIONS_API = '/api/pricing/deadstock/decisions'
+const SUMMARY_API = '/api/pricing/deadstock/summary'
 const UNIT_COST = '18.5000'
 const RECEIVED_QUANTITY = '40'
 const READER_PASSWORD = 'QaDeadstock123!'
@@ -262,6 +263,26 @@ test.describe('TC-PRICING-DEAD-001: deadstock listing and decisions', () => {
       // to the page size. If these two ever diverge the tile starts lying about its own list.
       expect(actionable.items.length).toBe(Math.min(actionable.totals.atRiskCount, 50))
 
+      // --- The summary route: same totals, no rows, and its own narrower permission -------------
+      //
+      // A tile showing one figure and a screen showing another, both naming the same thing, is the
+      // failure the first three assertions rule out. The fourth is the point of the separate route:
+      // it must be reachable by a role that has `pricing.deadstock.summary` and NOTHING else, and
+      // it must be structurally incapable of returning a product-level figure to that role.
+      const summaryResponse = await apiRequest(request, 'GET', SUMMARY_API, { token })
+      expect(summaryResponse.ok(), `GET ${SUMMARY_API}: ${summaryResponse.status()}`).toBe(true)
+      const summary = (await summaryResponse.json()) as {
+        totals: DeadstockListResponse['totals']
+        currencyCode: string
+      }
+      expect(summary.totals.tiedCapital).toBe(actionable.totals.tiedCapital)
+      expect(summary.totals.monthlyCarry).toBe(actionable.totals.monthlyCarry)
+      expect(summary.totals.atRiskCount).toBe(actionable.totals.atRiskCount)
+      expect(
+        Object.keys(summary),
+        'the summary shape carries no row collection at all',
+      ).not.toContain('items')
+
       // --- A sort key the API does not have is rejected, not silently ignored ------------------
       const badSort = await apiRequest(request, 'GET', `${LIST_API}?sort=whatever`, { token })
       expect(badSort.status(), 'an unknown sort key must be a client error').toBe(400)
@@ -302,6 +323,15 @@ test.describe('TC-PRICING-DEAD-001: deadstock listing and decisions', () => {
 
       const readerList = await apiRequest(request, 'GET', `${LIST_API}?pageSize=5`, { token: readerToken })
       expect(readerList.status(), 'pricing.view is enough to read the list').toBe(200)
+
+      // The narrow feature in both directions: this reader has `pricing.view` but NOT
+      // `pricing.deadstock.summary`, so the tile endpoint refuses it even though the list does not.
+      // That asymmetry is the whole reason the route is separate.
+      const readerSummary = await apiRequest(request, 'GET', SUMMARY_API, { token: readerToken })
+      expect(
+        readerSummary.status(),
+        'the summary route is gated on its own feature, not on pricing.view',
+      ).toBe(403)
 
       const readerDecision = await apiRequest(request, 'POST', DECISIONS_API, {
         token: readerToken,

@@ -1,6 +1,6 @@
 export const metadata = {
   requireAuth: true,
-  requireFeatures: ['customers.companies.view', 'sales.orders.view'],
+  requireFeatures: ['customers.companies.view', 'sales.orders.view', 'distributor_workspace.forecast.view'],
   pageTitle: 'Predicted orders',
   pageTitleKey: 'distributor_workspace.orderForecast.page.title',
   pageGroup: 'Daily work',

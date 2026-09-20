@@ -16,12 +16,26 @@ import { DISTRIBUTOR_FEATURES, DISTRIBUTOR_ROLE, DISTRIBUTOR_ROLE_NAMES } from '
  * before `seedDefaults` and would otherwise find no role to attach them to. On a tenant that
  * already exists, finish with:
  *   yarn mercato auth sync-role-acls --tenant <tenantId>
+ *
+ * `defaultRoleFeatures` also hands the module's own ids (`acl.ts`) to the core roles: `admin`
+ * gets the wildcard, `employee` every id, `distributor` the full bundle from `lib/roleFeatures`.
+ * The sync MERGES into existing roles, so nobody who reaches a screen today loses it — the own
+ * ids are required on top of the data-owning modules' ids, which every one of these roles holds.
  */
 export const setup: ModuleSetupConfig = {
   seedDefaults: async (ctx) => {
     await ensureRoles(ctx.em, { tenantId: ctx.tenantId, roleNames: [...DISTRIBUTOR_ROLE_NAMES] })
   },
   defaultRoleFeatures: {
+    admin: ['distributor_workspace.*'],
+    employee: [
+      'distributor_workspace.widgets.next-actions',
+      'distributor_workspace.widgets.expiring-stock',
+      'distributor_workspace.widgets.stock-gaps',
+      'distributor_workspace.forecast.view',
+      'distributor_workspace.forecast.feedback',
+      'distributor_workspace.pricing.compare',
+    ],
     [DISTRIBUTOR_ROLE]: [...DISTRIBUTOR_FEATURES],
   },
 }

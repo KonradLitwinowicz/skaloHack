@@ -26,6 +26,7 @@ import {
   toTextOrNull,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/purchase-positions`.
@@ -128,6 +129,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, PurchasePositionListQ
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('purchase_position'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingPurchasePosition, PurchasePositionRow>(payload, ctx.query, {
         mapItem: toPurchasePositionRow,

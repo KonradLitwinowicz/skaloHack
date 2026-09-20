@@ -4,6 +4,7 @@ import type { PricingConfidence, WarehouseCostSnapshot } from '../types'
 
 const MONTHS_PER_YEAR = toDecimal('12')
 const DAYS_PER_MONTH = toDecimal('30')
+const DAYS_PER_WEEK = toDecimal('7')
 
 export type CarryingCostArgs = {
   onHandQuantity: Decimal
@@ -21,6 +22,16 @@ export type CarryingCost = {
   capitalPerUnitPerMonth: Decimal
   perUnitPerMonth: Decimal
   positionPerMonth: Decimal
+  /**
+   * The same rate over the horizons people actually reason in.
+   *
+   * A monthly figure alone is the wrong unit for both ends of the decision. A warehouse manager
+   * asking "can this wait until next week" needs the weekly number, and the argument that moves an
+   * owner is the annual one: 2 702 PLN a month is an expense, 32 431 PLN a year is a decision.
+   * Derived, never re-measured, so the three can never disagree.
+   */
+  positionPerWeek: Decimal
+  positionPerYear: Decimal
   /** What this position has already cost since it arrived. Zero when the age is unknown. */
   carriedToDate: Decimal
   /** Purchase value of the stock on hand — the money asleep in the warehouse. */
@@ -56,6 +67,8 @@ export function computeCarryingCost(args: CarryingCostArgs): CarryingCost {
       capitalPerUnitPerMonth: ZERO,
       perUnitPerMonth: ZERO,
       positionPerMonth: ZERO,
+      positionPerWeek: ZERO,
+      positionPerYear: ZERO,
       carriedToDate: ZERO,
       tiedCapital,
       confidence: 'default',
@@ -91,6 +104,8 @@ export function computeCarryingCost(args: CarryingCostArgs): CarryingCost {
     capitalPerUnitPerMonth,
     perUnitPerMonth,
     positionPerMonth,
+    positionPerWeek: div(mul(positionPerMonth, DAYS_PER_WEEK), DAYS_PER_MONTH),
+    positionPerYear: mul(positionPerMonth, MONTHS_PER_YEAR),
     carriedToDate,
     tiedCapital,
     confidence,

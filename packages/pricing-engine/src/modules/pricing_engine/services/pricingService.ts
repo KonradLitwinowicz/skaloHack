@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
+import { emitPricingEngineEvent } from '../events'
 import {
   PricingCalculation,
   PricingCalculationLine,
@@ -161,12 +162,76 @@ function toSupplierSnapshot(profile: PricingSupplierProfile): SupplierSnapshot {
   }
 }
 
+/**
+ * Memo of the inputs already loaded on one EntityManager.
+ *
+ * The inputs are the tenant's pricing configuration plus a snapshot of the basket's products:
+ * supplier profile, parameters, catalogue, inventory, deadstock floors, scenarios, indicators.
+ * Screens that quote one basket several times over — the price comparison walks a volume ladder,
+ * the desk re-quotes on every keystroke — asked for exactly the same snapshot each time and paid
+ * the whole load again. Within one request that answer cannot legitimately change, so it is
+ * loaded once per (EntityManager, scope, basket).
+ *
+ * Keyed on the EM, which is forked per request, so the memo dies with the request and never
+ * carries a stale parameter set into the next one. The per-EM map is capped because a worker may
+ * drive many different baskets through one long-lived EM.
+ */
+const PRICING_INPUTS_MEMO_LIMIT = 32
+const pricingInputsMemo = new WeakMap<EntityManager, Map<string, Promise<PricingInputs>>>()
+
+function pricingInputsMemoKey(
+  scope: PricingInputsScope,
+  productIds: string[],
+  variantIdByProductId: Map<string, string>,
+): string {
+  const products = [...productIds].sort((left, right) => left.localeCompare(right)).join(',')
+  const variants = [...variantIdByProductId.entries()]
+    .map(([productId, variantId]) => `${productId}:${variantId}`)
+    .sort((left, right) => left.localeCompare(right))
+    .join(',')
+  return [
+    scope.tenantId,
+    scope.organizationId,
+    scope.customerId ?? '',
+    scope.date.getTime(),
+    products,
+    variants,
+  ].join('|')
+}
+
 export async function loadPricingInputs(
   em: EntityManager,
   container: { resolve: (name: string) => unknown },
   scope: PricingInputsScope,
   productIds: string[],
   variantIdByProductId: Map<string, string> = new Map(),
+): Promise<PricingInputs> {
+  const memoKey = pricingInputsMemoKey(scope, productIds, variantIdByProductId)
+  let memo = pricingInputsMemo.get(em)
+  if (!memo) {
+    memo = new Map()
+    pricingInputsMemo.set(em, memo)
+  }
+  const memoized = memo.get(memoKey)
+  if (memoized) return memoized
+
+  const pending = loadPricingInputsUncached(em, container, scope, productIds, variantIdByProductId)
+  // A rejected load must not be replayed to every later caller of the same basket.
+  pending.catch(() => memo.delete(memoKey))
+  if (memo.size >= PRICING_INPUTS_MEMO_LIMIT) {
+    const oldest = memo.keys().next()
+    if (!oldest.done) memo.delete(oldest.value)
+  }
+  memo.set(memoKey, pending)
+  return pending
+}
+
+async function loadPricingInputsUncached(
+  em: EntityManager,
+  container: { resolve: (name: string) => unknown },
+  scope: PricingInputsScope,
+  productIds: string[],
+  variantIdByProductId: Map<string, string>,
 ): Promise<PricingInputs> {
   const scopeFilter = {
     tenantId: scope.tenantId,
@@ -313,6 +378,7 @@ function buildContextSnapshot(context: PricingContext, supplier: SupplierSnapsho
       quantity: line.quantity,
       enteredQuantity: line.enteredQuantity ?? null,
       enteredUnitCode: line.enteredUnitCode ?? null,
+      purchaseUnitCostNet: line.purchaseUnitCostNet ?? null,
     })),
     source: {
       supplierSlug: supplier.slug,
@@ -424,6 +490,15 @@ export function createPricingService(deps: {
 
       await em.flush()
       result.calculationId = calculationId
+      await emitPricingEngineEvent('pricing_engine.calculation.created', {
+        id: calculationId,
+        tenantId: effectiveContext.tenantId,
+        organizationId: effectiveContext.organizationId,
+        customerId: effectiveContext.customerId ?? null,
+        mode: effectiveContext.mode,
+        triggeredBy: options.triggeredBy ?? 'api',
+        totalNet: run.totalNet,
+      })
       return result
     },
   }

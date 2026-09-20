@@ -272,7 +272,7 @@ async function seedDemoPurchasePositions(
 export const setup: ModuleSetupConfig = {
   defaultRoleFeatures: {
     admin: ['pricing.*'],
-    employee: ['pricing.view', 'pricing.quote', 'pricing.audit.read'],
+    employee: ['pricing.view', 'pricing.quote', 'pricing.audit.read', 'pricing.deadstock.summary'],
   },
 
   async seedDefaults({ em, tenantId, organizationId }) {

@@ -29,6 +29,7 @@ import {
   toTextOrNull,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/customer-profiles`.
@@ -213,6 +214,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, CustomerProfileListQu
     buildFilters: async (query) => buildCustomerProfileFilters(query),
   },
   hooks: {
+    ...pricingParameterEventHooks('customer_profile'),
     beforeCreate: async (input, ctx) => {
       await assertNoExistingProfile(customerProfileCreateSchema.parse(input), ctx)
     },

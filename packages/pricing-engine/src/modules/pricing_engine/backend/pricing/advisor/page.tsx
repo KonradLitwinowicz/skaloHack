@@ -26,11 +26,13 @@ import {
   TableRow,
 } from '@open-mercato/ui/primitives/table'
 import { EmptyState } from '@open-mercato/ui/primitives/empty-state'
+import { Alert, AlertDescription } from '@open-mercato/ui/primitives/alert'
 import { LookupSelect, type LookupSelectItem } from '@open-mercato/ui/backend/inputs'
 import { ErrorMessage, LoadingMessage } from '@open-mercato/ui/backend/detail'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { MarginSummary } from '../../../components/MarginSummary'
+import { buildDeskHref } from '../../../lib/frontend/basketDesk'
 import { basketMargin, formatMoney } from '../../../lib/frontend/marginMath'
 import type { AdviseResponse } from '../../../lib/frontend/advisorTypes'
 import { SuggestionCard } from './SuggestionCard'
@@ -158,9 +160,26 @@ export default function PricingAdvisorPage() {
     [baseline],
   )
 
+  const deskHref = buildDeskHref({
+    customerId,
+    orderScenarioCode,
+    lines: productId && quantity ? [{ productId, quantity: String(quantity) }] : [],
+  })
+
   return (
     <Page>
       <PageBody>
+        <Alert status="information" style="lighter" size="sm">
+          <AlertDescription>
+            {t(
+              'pricing_engine.advisor.movedToDesk',
+              'These suggestions now appear on the pricing desk as you build a basket, with one-click apply.',
+            )}{' '}
+            <Link className="underline" href={deskHref}>
+              {t('pricing_engine.advisor.openDesk', 'Open the pricing desk')}
+            </Link>
+          </AlertDescription>
+        </Alert>
         <p className="text-sm text-muted-foreground">
           {t(
             'pricing_engine.advisor.description',

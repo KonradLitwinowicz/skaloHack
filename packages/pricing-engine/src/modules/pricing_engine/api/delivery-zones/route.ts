@@ -24,6 +24,7 @@ import {
   toTextOrNull,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/delivery-zones`.
@@ -94,6 +95,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, DeliveryZoneListQuery
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('delivery_zone'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingDeliveryZone, DeliveryZoneRow>(payload, ctx.query, {
         mapItem: toDeliveryZoneRow,

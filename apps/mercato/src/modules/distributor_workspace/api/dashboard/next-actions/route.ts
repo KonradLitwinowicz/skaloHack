@@ -24,7 +24,7 @@ const logger = createLogger('distributor_workspace').child({ component: 'dashboa
 export const metadata = {
   GET: {
     requireAuth: true,
-    requireFeatures: ['dashboards.view', 'wms.view', 'sales.quotes.view', 'sales.orders.view'],
+    requireFeatures: ['dashboards.view', 'wms.view', 'sales.quotes.view', 'sales.orders.view', 'distributor_workspace.widgets.next-actions'],
   },
 }
 

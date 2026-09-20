@@ -14,13 +14,20 @@ import {
 } from '@open-mercato/shared/lib/crud/exporters'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { loadUpcomingOrderForecasts } from '../../../lib/orderForecastLoader'
+import {
+  readUpcomingForecastCache,
+  resolveForecastCache,
+  upcomingForecastCacheKey,
+  writeUpcomingForecastCache,
+} from '../../../lib/orderForecastCache'
+import { exportWeekdayLabel } from '../../../lib/weekdayLabels'
 
 const logger = createLogger('distributor_workspace').child({ component: 'upcoming-order-forecast' })
 
 export const metadata = {
   GET: {
     requireAuth: true,
-    requireFeatures: ['customers.companies.view', 'sales.orders.view'],
+    requireFeatures: ['customers.companies.view', 'sales.orders.view', 'distributor_workspace.forecast.view'],
   },
 }
 
@@ -31,10 +38,28 @@ export const metadata = {
  * list — it is the more urgent of the two, and a horizon that filtered it out would quietly hide
  * the customers most worth a phone call.
  */
+/**
+ * `weekdays=2,5` narrows the list to the delivery days named, ISO weekdays, Monday is 1.
+ *
+ * A distributor loading Tuesday's van wants Tuesday's deliveries — on the screen and in the CSV
+ * they print and hand to the driver. Omitted means every weekday.
+ */
+const weekdayListSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .map((entry) => Number.parseInt(entry, 10)),
+  )
+  .pipe(z.array(z.number().int().min(1).max(7)).max(7))
+
 const querySchema = z.object({
   format: z.string().optional(),
   horizonDays: z.coerce.number().int().min(1).max(120).optional(),
   minConfidence: z.coerce.number().min(0).max(1).optional(),
+  weekdays: weekdayListSchema.optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 })
 
@@ -55,6 +80,8 @@ const basketLineSchema = z.object({
   confidenceBand: z.enum(['high', 'medium', 'low']),
   acknowledged: z.boolean(),
   cadenceDays: z.number(),
+  dominantWeekday: z.number().int().min(1).max(7).nullable(),
+  weekdayHits: z.number().int(),
   occurrences: z.number().int(),
   lastOrderedAt: z.string(),
   history: z.array(
@@ -100,10 +127,12 @@ const errorSchema = z.object({ error: z.string() })
 const EXPORT_COLUMNS: CrudExportColumn[] = [
   { field: 'customerName', header: 'Klient' },
   { field: 'expectedAt', header: 'Dostawa' },
+  { field: 'weekday', header: 'Dzien dostawy' },
   { field: 'productName', header: 'Produkt' },
   { field: 'sku', header: 'SKU' },
   { field: 'predictedQuantity', header: 'Przewidywana ilosc' },
   { field: 'quantityUnit', header: 'Jednostka' },
+  { field: 'usualWeekday', header: 'Zwykle w' },
   { field: 'overdueDays', header: 'Zalegle dni' },
   { field: 'confidencePercent', header: 'Pewnosc (%)' },
   { field: 'predictedLineNetAmount', header: 'Wartosc netto' },
@@ -127,17 +156,37 @@ export async function GET(request: Request) {
       throw new CrudHttpError(401, { error: 'Unauthorized' })
     }
 
-    const em = (container.resolve('em') as EntityManager).fork()
+    const scope = { organizationId, tenantId: auth.tenantId }
     const now = new Date()
-    const result = await loadUpcomingOrderForecasts({
-      em,
-      scope: { organizationId, tenantId: auth.tenantId },
-      now,
-      horizonDays,
-      options: query.minConfidence === undefined ? undefined : { minConfidence: query.minConfidence },
-    })
+    // The horizon is part of the key and the weekday filter is not: weekdays narrow the rows
+    // AFTER the forecast runs, so every weekday selection reads the same computed answer.
+    const cache = resolveForecastCache(container)
+    const cacheKey = upcomingForecastCacheKey(scope, horizonDays, query.minConfidence, now)
+    let entry = await readUpcomingForecastCache(cache, cacheKey)
 
-    const rows = result.rows.slice(0, limit).map((row) => ({
+    if (!entry) {
+      const em = (container.resolve('em') as EntityManager).fork()
+      entry = {
+        generatedAt: now.toISOString(),
+        result: await loadUpcomingOrderForecasts({
+          em,
+          scope,
+          now,
+          horizonDays,
+          options: query.minConfidence === undefined ? undefined : { minConfidence: query.minConfidence },
+        }),
+      }
+      await writeUpcomingForecastCache(cache, cacheKey, scope, entry)
+    }
+    const result = entry.result
+
+    const weekdays = query.weekdays ?? []
+    // Narrowed before the limit, so asking for one weekday cannot be silently truncated by rows of
+    // the other six.
+    const selected = result.rows.filter(
+      (row) => weekdays.length === 0 || weekdays.includes(row.basket.weekday),
+    )
+    const rows = selected.slice(0, limit).map((row) => ({
       customerEntityId: row.customerEntityId,
       customerName: row.customerName,
       expectedAt: row.basket.expectedAt,
@@ -166,6 +215,8 @@ export async function GET(request: Request) {
         confidenceBand: line.confidenceBand,
         acknowledged: line.acknowledged,
         cadenceDays: line.cadence.intervalDays,
+        dominantWeekday: line.cadence.dominantWeekday,
+        weekdayHits: line.cadence.weekdayHits,
         occurrences: line.evidence.occurrences,
         lastOrderedAt: line.evidence.lastOrderedAt,
         history: line.history,
@@ -190,10 +241,12 @@ export async function GET(request: Request) {
             row.lines.map((line) => ({
               customerName: row.customerName ?? '',
               expectedAt: row.expectedAt,
+              weekday: exportWeekdayLabel(row.weekday),
               productName: line.productName,
               sku: line.sku ?? '',
               predictedQuantity: line.predictedQuantity,
               quantityUnit: line.quantityUnit ?? '',
+              usualWeekday: exportWeekdayLabel(line.dominantWeekday),
               overdueDays: row.overdueDays,
               confidencePercent: Math.round(line.confidence * 100),
               predictedLineNetAmount: line.predictedLineNetAmount ?? '',
@@ -216,7 +269,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       responseSchema.parse({
-        generatedAt: now.toISOString(),
+        generatedAt: entry.generatedAt,
         horizonDays: result.horizonDays,
         customersAnalysed: result.customersAnalysed,
         customersWithPredictions: result.customersWithPredictions,
@@ -241,7 +294,7 @@ export const openApi: OpenApiRouteDoc = {
   tag: 'Distributor Workspace',
   summary: 'Predicted orders across the whole customer base',
   description:
-    'Every recurring order the distributor is expecting within the horizon, across all customers, most overdue first. Rows already past due are always included regardless of the horizon, because a missed delivery is the more urgent half of the question. Computed live from sales orders with the same engine and the same calibration the customer card uses.',
+    'Every recurring order the distributor is expecting within the horizon, across all customers, most overdue first. Rows already past due are always included regardless of the horizon, because a missed delivery is the more urgent half of the question. `weekdays=2,5` narrows the list to the delivery days named (ISO weekdays, Monday is 1), which is what a van being loaded for one day needs. Computed live from sales orders with the same engine and the same calibration the customer card uses.',
   methods: {
     GET: {
       summary: 'Load the upcoming predicted orders',

@@ -13,6 +13,7 @@ import { ErrorMessage, LoadingMessage, TabEmptyState } from '@open-mercato/ui/ba
 import { Button } from '@open-mercato/ui/primitives/button'
 import { StatusBadge, type StatusBadgeVariant } from '@open-mercato/ui/primitives/status-badge'
 import { flash } from '@open-mercato/ui/backend/FlashMessages'
+import { buildDeskHref } from '@open-mercato/pricing-engine/modules/pricing_engine/lib/frontend/basketDesk'
 import { formatCounted } from '../../../lib/pluralize'
 import type {
   ConfidenceBand,
@@ -161,7 +162,27 @@ function resolveCustomerId(context: unknown, data: unknown): string | null {
 function formatDate(value: string | null, locale: string, emptyLabel: string): string {
   if (!value) return emptyLabel
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? emptyLabel : date.toLocaleDateString(locale || undefined)
+  return Number.isNaN(date.getTime())
+    ? emptyLabel
+    : date.toLocaleDateString(locale || undefined, { timeZone: 'UTC' })
+}
+
+/**
+ * A past purchase is dated AND named by its weekday.
+ *
+ * The rhythm the operator is being asked to trust is a weekday habit as much as an interval, and a
+ * bare "12.05" does not say whether the customer kept their Tuesday or broke it. The weekday comes
+ * from `Intl` rather than from a translation table so that it always agrees with the date rendered
+ * beside it.
+ */
+function formatHistoryDate(value: string, locale: string, emptyLabel: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return emptyLabel
+  const weekday = new Intl.DateTimeFormat(locale || undefined, {
+    weekday: 'short',
+    timeZone: 'UTC',
+  }).format(date)
+  return `${weekday} ${date.toLocaleDateString(locale || undefined, { timeZone: 'UTC' })}`
 }
 
 function formatMoney(value: number | null, currencyCode: string | null, locale: string): string | null {
@@ -257,6 +278,10 @@ function CustomerBasketCard({
   const [pricing, setPricing] = React.useState<BasketPricing | null>(null)
   const [pricingPending, setPricingPending] = React.useState(false)
   const money = formatMoney(basket.totalNetAmount, basket.currencyCode, locale)
+  const deskLines = basket.lines.flatMap((line) =>
+    line.productId ? [{ productId: line.productId, quantity: String(line.predictedQuantity) }] : [],
+  )
+  const deskHref = deskLines.length > 0 ? buildDeskHref({ customerId, lines: deskLines }) : null
 
   const priceBasket = React.useCallback(async () => {
     const lines = basket.lines
@@ -336,6 +361,11 @@ function CustomerBasketCard({
           >
             {t('distributor_workspace.orderForecast.pricing.action', 'Price it')}
           </Button>
+          {deskHref ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={deskHref}>{t('distributor_workspace.orderForecast.action.openDesk', 'Price it on the desk')}</Link>
+            </Button>
+          ) : null}
           <Button type="button" size="sm" disabled={isCreating} onClick={() => onCreateOrder(basket.lines)}>
             {t('distributor_workspace.orderForecast.action.createOrder', 'Create draft order')}
           </Button>
@@ -438,7 +468,9 @@ function CustomerBasketCard({
                     <div>
                       {counted.orders(line.evidence.occurrences)}
                       {line.cadence.dominantWeekday !== null
-                        ? `, ${t('distributor_workspace.orderForecast.evidence.mostlyOn', 'mostly on')} ${weekdayInLabels[line.cadence.dominantWeekday] ?? ''}`
+                        ? `, ${t('distributor_workspace.orderForecast.evidence.mostlyOn', 'mostly on')} ${
+                            weekdayInLabels[line.cadence.dominantWeekday] ?? ''
+                          } (${line.cadence.weekdayHits}/${line.evidence.occurrences})`
                         : ''}
                     </div>
                     <div>
@@ -453,7 +485,7 @@ function CustomerBasketCard({
                           {t('distributor_workspace.orderForecast.history.label', 'Bought on')}:
                         </span>
                         {line.history.map((entry) => {
-                          const label = `${formatDate(entry.orderedAt, locale, emptyLabel)} (${entry.quantity})`
+                          const label = `${formatHistoryDate(entry.orderedAt, locale, emptyLabel)} (${entry.quantity})`
                           const orderId = entry.orderIds[0]
                           return orderId ? (
                             <Link

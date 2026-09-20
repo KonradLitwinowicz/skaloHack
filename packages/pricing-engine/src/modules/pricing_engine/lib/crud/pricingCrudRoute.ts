@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { CrudCtx } from '@open-mercato/shared/lib/crud/factory'
 import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
+import { emitPricingEngineEvent } from '../../events'
 
 /**
  * Shared plumbing for the pricing parameter CRUD routes.
@@ -310,5 +311,37 @@ export function pricingCrudOpenApi(options: {
         responses: [{ status: 200, description: 'Deleted', schema: okResponseSchema }],
       },
     },
+  }
+}
+
+/**
+ * `pricing_engine.parameters.changed` is the one signal a consumer needs to know that a quote
+ * computed a moment ago may no longer match the parameter set. `makeCrudRoute` already emits the
+ * per-entity `pricing_engine.<entity>.created|updated|deleted` events; this coarse event exists
+ * so a cache or a re-quote worker can subscribe once instead of to thirteen entity streams.
+ */
+export function pricingParameterEventHooks(entity: string): {
+  afterCreate: (record: unknown, ctx: CrudCtx) => Promise<void>
+  afterUpdate: (record: unknown, ctx: CrudCtx) => Promise<void>
+  afterDelete: (id: string, ctx: CrudCtx) => Promise<void>
+} {
+  const emitChanged = async (action: 'created' | 'updated' | 'deleted', id: string | null, ctx: CrudCtx) => {
+    const { organizationId, tenantId } = scopeFromContext(ctx)
+    await emitPricingEngineEvent('pricing_engine.parameters.changed', {
+      entity,
+      action,
+      id: id ?? undefined,
+      tenantId,
+      organizationId,
+    })
+  }
+  const recordId = (record: unknown): string | null => {
+    const candidate = (record as { id?: unknown } | null)?.id
+    return typeof candidate === 'string' ? candidate : null
+  }
+  return {
+    afterCreate: (record, ctx) => emitChanged('created', recordId(record), ctx),
+    afterUpdate: (record, ctx) => emitChanged('updated', recordId(record), ctx),
+    afterDelete: (id, ctx) => emitChanged('deleted', id, ctx),
   }
 }

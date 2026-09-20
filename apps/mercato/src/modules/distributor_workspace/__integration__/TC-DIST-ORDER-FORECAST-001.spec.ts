@@ -35,7 +35,7 @@ import {
 
 export const integrationMeta = {
   description:
-    'Customer order-forecast route and the cross-customer upcoming list: auth gate, weekly pattern detection with evidence, rejection of non-repeating purchases, CSV export, and operator feedback suppressing and restoring a prediction',
+    'Customer order-forecast route and the cross-customer upcoming list: auth gate, weekly pattern detection with evidence, weekday carried onto the delivery list and its CSV, the weekday filter, rejection of non-repeating purchases, CSV export, and operator feedback suppressing and restoring a prediction',
   requiredModules: ['distributor_workspace', 'sales', 'customers', 'catalog'],
 }
 
@@ -55,11 +55,22 @@ type ForecastPrediction = {
   evidence: { occurrences: number; medianIntervalDays: number; lastOrderedAt: string }
 }
 
+type ForecastBasket = {
+  expectedAt: string
+  weekday: number
+  daysUntilExpected: number
+  overdueDays: number
+  lineCount: number
+  confidence: number
+  lines: Array<{ productVariantId: string | null; predictedQuantity: number }>
+}
+
 type ForecastResponse = {
   customerId: string
   rhythm: { orderCount: number; medianIntervalDays: number | null; dominantWeekday: number | null }
   accuracy: { trials: number; hitRate: number | null }
   predictions: ForecastPrediction[]
+  baskets: ForecastBasket[]
   rejected: Array<{ reason: string; count: number; examples: string[] }>
   history: { orderCount: number; lineCount: number }
   thresholds: { minOccurrences: number; minSpanDays: number }
@@ -75,6 +86,10 @@ function feedbackUrl(customerId: string, query = ''): string {
 
 const UPCOMING_API = '/api/distributor_workspace/order-forecast/upcoming'
 
+/**
+ * A row on the cross-customer list is a DELIVERY, with the products inside it — the same shape the
+ * customer card returns under `baskets`, which is what lets the two be compared row for row.
+ */
 type UpcomingResponse = {
   horizonDays: number
   customersAnalysed: number
@@ -82,13 +97,20 @@ type UpcomingResponse = {
   rows: Array<{
     customerEntityId: string
     customerName: string | null
-    productVariantId: string | null
-    productName: string
-    predictedQuantity: number
-    nextExpectedAt: string
-    daysUntilNextExpected: number
+    expectedAt: string
+    weekday: number
+    daysUntilExpected: number
     overdueDays: number
+    lineCount: number
     confidence: number
+    lines: Array<{
+      productVariantId: string | null
+      productName: string
+      predictedQuantity: number
+      dominantWeekday: number | null
+      weekdayHits: number
+      occurrences: number
+    }>
   }>
 }
 
@@ -327,17 +349,30 @@ test.describe('TC-DIST-ORDER-FORECAST-001 customer order forecast', () => {
     const mine = (body as UpcomingResponse).rows.filter(
       (row) => row.customerEntityId === companyId,
     )
-    const staple = mine.find((row) => row.productVariantId === stapleVariantId)
+    expect(mine.length, 'The customer must have at least one expected delivery').toBeGreaterThan(0)
+
+    const delivery = mine[0]!
+    const staple = delivery.lines.find((line) => line.productVariantId === stapleVariantId)
     expect(staple, 'The weekly staple must appear on the cross-customer list too').toBeTruthy()
     expect(staple?.predictedQuantity).toBe(STAPLE_QUANTITY)
-    expect(staple?.customerName).toContain(suffix)
+    expect(delivery.customerName).toContain(suffix)
+
+    // Eight Monday deliveries: the weekday must survive into the list an operator plans against,
+    // both as the delivery date and as the evidence beside the line.
+    expect(new Date(`${delivery.expectedAt}T00:00:00.000Z`).getUTCDay()).toBe(1)
+    expect(delivery.weekday).toBe(1)
+    expect(staple?.dominantWeekday).toBe(1)
+    expect(staple?.weekdayHits).toBe(staple?.occurrences)
 
     const card = await loadForecast(request, adminToken, companyId as string)
-    const fromCard = card.predictions.find((prediction) => prediction.productVariantId === stapleVariantId)
-    expect(staple?.nextExpectedAt).toBe(fromCard?.nextExpectedAt)
-    expect(staple?.confidence).toBe(fromCard?.confidence)
+    const fromCard = card.baskets.find((basket) => basket.expectedAt === delivery.expectedAt)
+    expect(fromCard, 'The same delivery must exist on the customer card').toBeTruthy()
+    expect(delivery.confidence).toBe(fromCard?.confidence)
+    expect(delivery.lineCount).toBe(fromCard?.lineCount)
 
-    expect(mine.some((row) => row.productVariantId === oneOffVariantId)).toBe(false)
+    expect(
+      mine.some((row) => row.lines.some((line) => line.productVariantId === oneOffVariantId)),
+    ).toBe(false)
     expect((body as UpcomingResponse).customersAnalysed).toBeGreaterThan(0)
   })
 
@@ -352,8 +387,47 @@ test.describe('TC-DIST-ORDER-FORECAST-001 customer order forecast', () => {
       (narrowBody as UpcomingResponse).rows.length,
     )
     for (const row of (narrowBody as UpcomingResponse).rows) {
-      expect(row.daysUntilNextExpected).toBeLessThanOrEqual(1)
+      expect(row.daysUntilExpected).toBeLessThanOrEqual(1)
     }
+  })
+
+  /**
+   * The van being loaded on Monday is a different list from the week's forecast, and the CSV the
+   * driver is handed must be the same narrowing — not the whole week with a note on top.
+   */
+  test('narrows the cross-customer list to one delivery weekday', async ({ request }) => {
+    const monday = await apiRequest(request, 'GET', `${UPCOMING_API}?horizonDays=30&weekdays=1`, {
+      token: adminToken,
+    })
+    expect(monday.status(), 'GET upcoming with a weekday filter should return 200').toBe(200)
+    const mondayBody = (await readJsonSafe<UpcomingResponse>(monday)) as UpcomingResponse
+    for (const row of mondayBody.rows) {
+      expect(row.weekday, 'Only Monday deliveries may survive weekdays=1').toBe(1)
+    }
+    expect(mondayBody.rows.some((row) => row.customerEntityId === companyId)).toBe(true)
+
+    const tuesday = await apiRequest(request, 'GET', `${UPCOMING_API}?horizonDays=30&weekdays=2`, {
+      token: adminToken,
+    })
+    const tuesdayBody = (await readJsonSafe<UpcomingResponse>(tuesday)) as UpcomingResponse
+    expect(
+      tuesdayBody.rows.some((row) => row.customerEntityId === companyId),
+      'A Monday customer must not appear under weekdays=2',
+    ).toBe(false)
+
+    const csv = await apiRequest(
+      request,
+      'GET',
+      `${UPCOMING_API}?horizonDays=30&weekdays=1&format=csv`,
+      { token: adminToken },
+    )
+    expect(csv.status(), 'The filtered CSV export should return 200').toBe(200)
+    const csvBody = await csv.text()
+    expect(csvBody).toContain('Dzien dostawy')
+    expect(csvBody).toContain(stapleName)
+
+    const invalid = await apiRequest(request, 'GET', `${UPCOMING_API}?weekdays=9`, { token: adminToken })
+    expect(invalid.status(), 'A weekday outside 1-7 is not a request we can answer').toBe(400)
   })
 
   test('refuses an unauthenticated read of the cross-customer list', async ({ request }) => {

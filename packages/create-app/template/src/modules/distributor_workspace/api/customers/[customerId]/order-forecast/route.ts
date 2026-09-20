@@ -14,6 +14,7 @@ import {
 } from '@open-mercato/shared/lib/crud/exporters'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { PREDICTION_FEEDBACK_KINDS, PREDICTION_REJECTION_REASONS } from '../../../../lib/orderForecast'
+import { exportWeekdayLabel } from '../../../../lib/weekdayLabels'
 import { loadCustomerOrderForecast, summariseRejections } from '../../../../lib/orderForecastLoader'
 
 const logger = createLogger('distributor_workspace').child({ component: 'customer-order-forecast' })
@@ -24,7 +25,7 @@ const logger = createLogger('distributor_workspace').child({ component: 'custome
 export const metadata = {
   GET: {
     requireAuth: true,
-    requireFeatures: ['customers.companies.view', 'sales.orders.view'],
+    requireFeatures: ['customers.companies.view', 'sales.orders.view', 'distributor_workspace.forecast.view'],
   },
 }
 
@@ -101,6 +102,7 @@ const rhythmSchema = z.object({
   intervalSpreadDays: z.number().nullable(),
   dominantWeekday: z.number().int().min(1).max(7).nullable(),
   weekdayShare: z.number(),
+  orderWeekdays: z.array(z.number().int().min(1).max(7)),
   nextExpectedOrderAt: z.string().nullable(),
   daysUntilNextOrder: z.number().nullable(),
   orderOverdueDays: z.number(),
@@ -193,8 +195,6 @@ const EXPORT_COLUMNS: CrudExportColumn[] = [
   { field: 'predictedLineNetAmount', header: 'Wartosc netto' },
 ]
 
-const WEEKDAY_LABELS = ['', 'Pn', 'Wt', 'Sr', 'Cz', 'Pt', 'So', 'Nd']
-
 export async function GET(request: Request, context: { params?: { customerId?: string } }) {
   try {
     const { customerId } = paramsSchema.parse({ customerId: context.params?.customerId })
@@ -238,10 +238,7 @@ export async function GET(request: Request, context: { params?: { customerId?: s
             quantityUnit: prediction.quantityUnit ?? '',
             nextExpectedAt: prediction.nextExpectedAt,
             cadenceDays: prediction.cadence.intervalDays,
-            weekday:
-              prediction.cadence.dominantWeekday === null
-                ? ''
-                : WEEKDAY_LABELS[prediction.cadence.dominantWeekday] ?? '',
+            weekday: exportWeekdayLabel(prediction.cadence.dominantWeekday),
             confidencePercent: Math.round(prediction.confidence * 100),
             occurrences: prediction.evidence.occurrences,
             lastOrderedAt: prediction.evidence.lastOrderedAt,

@@ -12,7 +12,7 @@ const widget: DashboardWidgetModule<StockGapsSettings> = {
     // widget no longer claims a trend (see the removal note in widget.client.tsx).
     description:
       'How many stock positions are at or below their reorder point, and how many of those are already below safety stock.',
-    features: ['dashboards.view', 'wms.view'],
+    features: ['dashboards.view', 'wms.view', 'distributor_workspace.widgets.stock-gaps'],
     defaultSize: 'md',
     defaultEnabled: true,
     // Third: restocking follows the two time-critical lists above.

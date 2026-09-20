@@ -35,7 +35,7 @@ const logger = createLogger('distributor_workspace').child({ component: 'basket-
 export const metadata = {
   POST: {
     requireAuth: true,
-    requireFeatures: ['customers.companies.view', 'sales.orders.view', 'pricing.simulate'],
+    requireFeatures: ['customers.companies.view', 'sales.orders.view', 'pricing.simulate', 'distributor_workspace.pricing.compare'],
   },
 }
 

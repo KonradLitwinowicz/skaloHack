@@ -1,5 +1,9 @@
 import { createModuleEvents } from '@open-mercato/shared/modules/events'
 
+// Only events with a real emit site are declared here. `mode.changed` and `supplier.imported`
+// were dropped: shadow mode is an env flag (`OM_PRICING_SHADOW_OBSERVE`), not a runtime switch,
+// and no supplier import surface exists — a declared event nobody emits is a contract no
+// subscriber can rely on.
 const events = [
   {
     id: 'pricing_engine.calculation.created',
@@ -12,18 +16,6 @@ const events = [
     label: 'Pricing parameters changed',
     entity: 'component_param',
     category: 'crud',
-  },
-  {
-    id: 'pricing_engine.mode.changed',
-    label: 'Pricing mode changed',
-    entity: 'supplier_profile',
-    category: 'lifecycle',
-  },
-  {
-    id: 'pricing_engine.supplier.imported',
-    label: 'Supplier package imported',
-    entity: 'supplier_profile',
-    category: 'system',
   },
 ] as const
 

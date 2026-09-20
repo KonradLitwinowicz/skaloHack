@@ -8,7 +8,7 @@ const widget: DashboardWidgetModule<ExpiringStockSettings> = {
     id: 'distributor_workspace.dashboard.expiringStock',
     title: 'Stock losing its date',
     description: 'Lots approaching or past their expiry date, most urgent first, each linking to the lot.',
-    features: ['dashboards.view', 'wms.view'],
+    features: ['dashboards.view', 'wms.view', 'distributor_workspace.widgets.expiring-stock'],
     defaultSize: 'md',
     defaultEnabled: true,
     // Second: date-driven losses come before restocking decisions.

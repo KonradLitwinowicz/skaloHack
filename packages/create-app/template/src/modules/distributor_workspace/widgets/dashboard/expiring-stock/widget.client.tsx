@@ -4,11 +4,16 @@ import * as React from 'react'
 import Link from 'next/link'
 import { z } from 'zod'
 import type { DashboardWidgetComponentProps } from '@open-mercato/shared/modules/dashboard/widgets'
-import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
+import { sharedApiGet } from '@open-mercato/ui/backend/utils/sharedApiGet'
 import { WidgetError, WidgetSkeleton } from '@open-mercato/ui/backend/dashboard/WidgetList'
 import { useOptionalLocale, useT } from '@open-mercato/shared/lib/i18n/context'
 import { cn } from '@open-mercato/shared/lib/utils'
 
+// Both this widget and its neighbour on the dashboard are fed by this one endpoint, so the GET
+// goes through `sharedApiGet`: one request per dashboard open instead of two identical ones,
+// each of which costs the server the endpoint's whole query set. A refresh on either card
+// forces a fresh read for both.
+const OPERATIONAL_DASHBOARD_ENDPOINT = '/api/wms/dashboard/operational'
 const MS_PER_DAY = 86_400_000
 const LOTS_LIST_PATH = '/backend/wms/lots'
 const LOT_DETAIL_PATH = '/backend/wms/lot'
@@ -97,8 +102,8 @@ export function resolveLotPrimaryLabel(lot: ExpiringStockLot): { primary: string
   return { primary: productTitle, showSku: true }
 }
 
-async function loadExpiringStock(): Promise<ExpiringStockPayload> {
-  const call = await apiCall<unknown>('/api/wms/dashboard/operational')
+async function loadExpiringStock(force: boolean): Promise<ExpiringStockPayload> {
+  const call = await sharedApiGet<unknown>(OPERATIONAL_DASHBOARD_ENDPOINT, { force })
   if (!call.ok) {
     throw new Error(`[internal] Operational dashboard request failed with status ${call.status}`)
   }
@@ -172,18 +177,18 @@ const ExpiringStockWidget: React.FC<DashboardWidgetComponentProps<ExpiringStockS
     setLoading(true)
     setError(null)
     try {
-      setPayload(await loadExpiringStock())
+      setPayload(await loadExpiringStock(refreshToken > 0))
     } catch {
       setError(t('distributor_workspace.widgets.expiringStock.error', 'Could not load the expiry watch list'))
     } finally {
       setLoading(false)
       onRefreshStateChange?.(false)
     }
-  }, [onRefreshStateChange, t])
+  }, [onRefreshStateChange, refreshToken, t])
 
   React.useEffect(() => {
     refresh().catch(() => {})
-  }, [refresh, refreshToken])
+  }, [refresh])
 
   const describeDeadline = React.useCallback((days: number | null): string => {
     if (days === null) return t('distributor_workspace.widgets.expiringStock.deadline.unknown', 'No expiry date')

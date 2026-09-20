@@ -11,6 +11,8 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000
 const MONDAY = 1
 const THURSDAY = 4
+const FRIDAY = 5
+const SATURDAY = 6
 
 function dayMs(isoDate: string): number {
   return Date.parse(`${isoDate}T00:00:00.000Z`)
@@ -62,6 +64,33 @@ function series(spec: SeriesSpec): OrderObservation[] {
     })
   }
   return observations
+}
+
+/**
+ * The same series, moved onto working days the way a wholesale customer's orders actually fall.
+ *
+ * An interval alone cannot produce this: eleven days from a Friday is a Tuesday, but eleven days
+ * from a Wednesday is a Sunday — and the customer took that delivery on the Monday instead.
+ */
+function businessDayObservations(spec: {
+  startDate: string
+  count: number
+  intervalDays: number
+  productId: string
+}): OrderObservation[] {
+  const days: number[] = []
+  let cursorMs = dayMs(spec.startDate)
+  for (let index = 0; index < spec.count; index += 1) {
+    while (weekdayOf(cursorMs) > FRIDAY) cursorMs += DAY_MS
+    days.push(cursorMs)
+    cursorMs += spec.intervalDays * DAY_MS
+  }
+  return series({ startDate: spec.startDate, count: spec.count, intervalDays: 1, productId: spec.productId }).map(
+    (observation, index) => ({
+      ...observation,
+      placedAt: new Date((days[index] as number) + 21 * 60 * 60 * 1000),
+    }),
+  )
 }
 
 /** Every series shares one order per calendar day, the way a real multi-line delivery does. */
@@ -174,6 +203,57 @@ describe('buildOrderForecast — patterns that should be found', () => {
     expect(prediction.cadence.kind).toBe('interval')
     expect(prediction.cadence.dominantWeekday).toBeNull()
     expect(prediction.cadence.intervalDays).toBe(9)
+  })
+})
+
+describe('buildOrderForecast — the weekdays the customer actually orders on', () => {
+  /**
+   * The rhythm is eleven days and the weekday habit is too weak to snap to, so the date is placed
+   * by the interval — and the interval, left alone, puts a delivery on a Saturday this customer has
+   * not ordered on once in six months.
+   */
+  it('never projects a delivery onto a weekday the customer has never ordered on', () => {
+    const forecast = buildOrderForecast({
+      observations: businessDayObservations({
+        startDate: '2026-01-06',
+        count: 16,
+        intervalDays: 11,
+        productId: 'sacks',
+      }),
+      now: new Date('2026-07-05T10:00:00.000Z'),
+    })
+
+    expect(forecast.rhythm.orderWeekdays).toEqual([MONDAY, 2, FRIDAY])
+    expect(forecast.rhythm.dominantWeekday).toBeNull()
+
+    const prediction = forecast.predictions[0]!
+    const intervalOnlyMs =
+      dayMs(prediction.evidence.lastOrderedAt) + prediction.evidence.medianIntervalDays * DAY_MS
+    expect(weekdayOf(intervalOnlyMs)).toBe(SATURDAY)
+    expect(prediction.nextExpectedAt).toBe('2026-07-10')
+    expect(weekdayOf(dayMs(prediction.nextExpectedAt))).toBe(FRIDAY)
+  })
+
+  /**
+   * The guard against reading a habit out of noise: seven orders that happen to miss Saturday are
+   * not evidence that Saturday is closed, so the date is left where the interval put it.
+   */
+  it('leaves the date alone while the history is too short for a missing weekday to mean anything', () => {
+    const forecast = buildOrderForecast({
+      observations: businessDayObservations({
+        startDate: '2026-01-06',
+        count: 7,
+        intervalDays: 11,
+        productId: 'sacks',
+      }),
+      now: new Date('2026-03-22T10:00:00.000Z'),
+    })
+
+    expect(forecast.rhythm.orderWeekdays).toEqual([])
+
+    const prediction = forecast.predictions[0]!
+    expect(prediction.nextExpectedAt).toBe('2026-03-28')
+    expect(weekdayOf(dayMs(prediction.nextExpectedAt))).toBe(SATURDAY)
   })
 })
 

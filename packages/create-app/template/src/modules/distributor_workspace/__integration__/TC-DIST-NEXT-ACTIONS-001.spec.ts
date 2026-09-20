@@ -73,7 +73,13 @@ const FIXTURE_PASSWORD = 'StrongSecret123!'
 
 /** Restated, not imported: a test that read the route's own metadata would agree with any
  *  gate, including one that had quietly dropped a feature. */
-const REQUIRED_FEATURES = ['dashboards.view', 'wms.view', 'sales.quotes.view', 'sales.orders.view']
+const REQUIRED_FEATURES = [
+  'dashboards.view',
+  'wms.view',
+  'sales.quotes.view',
+  'sales.orders.view',
+  'distributor_workspace.widgets.next-actions',
+]
 
 const TONES = ['error', 'warning', 'info']
 

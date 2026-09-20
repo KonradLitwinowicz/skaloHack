@@ -176,7 +176,11 @@ describe('seedHorecaCustomers scenario assignment', () => {
 
   it('resolves the same scenario for the same seed every time it is asked', () => {
     for (const customer of HORECA_CUSTOMERS) {
-      expect(resolveOrderScenarioCode(customer)).toBe(resolveOrderScenarioCode(customer))
+      // Both arguments on purpose: omitting `repeatOrderAvailable` made it `undefined`, the
+      // function returned `seed.orderScenarioCode` on its first line, and this assertion compared
+      // one constant with itself — green whatever the scenario resolver did. `true` is the value
+      // that actually exercises the branch this test claims to pin down.
+      expect(resolveOrderScenarioCode(customer, true)).toBe(resolveOrderScenarioCode(customer, true))
     }
   })
 

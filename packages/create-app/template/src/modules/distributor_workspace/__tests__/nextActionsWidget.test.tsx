@@ -532,6 +532,7 @@ describe('next actions widget metadata', () => {
       'wms.view',
       'sales.quotes.view',
       'sales.orders.view',
+      'distributor_workspace.widgets.next-actions',
     ])
     expect(nextActionsWidget.metadata.defaultPriority).toBe(100)
   })
@@ -543,7 +544,9 @@ describe('next actions widget metadata', () => {
    * row the operator finds on top and cannot find in the description.
    */
   it('enumerates one clause per action kind the route can return', () => {
-    const enumerated = nextActionsWidget.metadata.description.split(':')[1] ?? ''
+    const description = nextActionsWidget.metadata.description
+    expect(description).toBeDefined()
+    const enumerated = (description ?? '').split(':')[1] ?? ''
     const clauses = enumerated
       .replace(/\.$/, '')
       .split(',')

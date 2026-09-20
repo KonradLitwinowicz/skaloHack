@@ -90,3 +90,23 @@ describe('monthsFromDays', () => {
     expect(monthsFromDays(-3)).toBeNull()
   })
 })
+
+describe('the three horizons', () => {
+  // Derived from one rate, never measured separately, so a reader comparing the week against the
+  // year can never be shown two figures that disagree.
+  it('expresses one monthly rate as a week and a year', () => {
+    const result = computeCarryingCost(args())
+
+    // 62.50 a month on a 30-day month: 7/30 of it a week, twelve of it a year.
+    expect(money(result.positionPerMonth)).toBe('62.5000')
+    expect(money(result.positionPerWeek)).toBe('14.5833')
+    expect(money(result.positionPerYear)).toBe('750.0000')
+  })
+
+  it('reports nothing over any horizon when no warehouse cost is configured', () => {
+    const result = computeCarryingCost(args({ warehouse: null }))
+
+    expect(money(result.positionPerWeek)).toBe('0.0000')
+    expect(money(result.positionPerYear)).toBe('0.0000')
+  })
+})

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { z } from 'zod'
 import { Trash2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@open-mercato/ui/primitives/alert'
@@ -34,6 +35,7 @@ import { useBackendChrome } from '@open-mercato/ui/backend/BackendChromeProvider
 import { hasFeature } from '@open-mercato/shared/security/features'
 import { useT, type TranslateFn } from '@open-mercato/shared/lib/i18n/context'
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
+import { buildDeskHref } from '../../../lib/frontend/basketDesk'
 import { formatMoney, lineMargin } from '../../../lib/frontend/marginMath'
 import { isoToDateInput } from '../../../lib/forms/paramValues'
 
@@ -1130,7 +1132,16 @@ export function CustomerPricingPanel({
     const notSet = t('pricing_engine.customerPricing.value.notSet', 'Not set')
     return (
       <div className="space-y-4" data-testid="customer-pricing-readonly">
-        <SectionHeader title={t('pricing_engine.customerPricing.title', 'Pricing terms')} />
+        <SectionHeader
+        title={t('pricing_engine.customerPricing.title', 'Pricing terms')}
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href={buildDeskHref({ customerId })}>
+              {t('pricing_engine.customerPricing.openDesk', 'Price a basket for this customer')}
+            </Link>
+          </Button>
+        }
+      />
         {precedenceBanner}
         <dl className="grid gap-3 sm:grid-cols-3">
           <div>
@@ -1188,7 +1199,16 @@ export function CustomerPricingPanel({
 
   return (
     <div className="space-y-4" data-testid="customer-pricing-form">
-      <SectionHeader title={t('pricing_engine.customerPricing.title', 'Pricing terms')} />
+      <SectionHeader
+        title={t('pricing_engine.customerPricing.title', 'Pricing terms')}
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href={buildDeskHref({ customerId })}>
+              {t('pricing_engine.customerPricing.openDesk', 'Price a basket for this customer')}
+            </Link>
+          </Button>
+        }
+      />
       {precedenceBanner}
       {floorNotice}
       <NegotiatedPricingContext.Provider value={contextValue}>

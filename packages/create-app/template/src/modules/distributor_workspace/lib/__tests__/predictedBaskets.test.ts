@@ -1,4 +1,4 @@
-import { buildOrderForecast, type OrderObservation } from '../orderForecast'
+import { buildOrderForecast, weekdayOf, type CustomerOrderRhythm, type OrderObservation } from '../orderForecast'
 import {
   DEFAULT_BASKET_OPTIONS,
   buildPredictedBaskets,
@@ -6,7 +6,28 @@ import {
 } from '../predictedBaskets'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const MONDAY = 1
+const TUESDAY = 2
 const WEDNESDAY = 3
+const FRIDAY = 5
+
+const SILENT_RHYTHM: CustomerOrderRhythm = {
+  orderCount: 1,
+  firstOrderAt: null,
+  lastOrderAt: null,
+  daysSinceLastOrder: null,
+  medianIntervalDays: null,
+  intervalSpreadDays: null,
+  dominantWeekday: null,
+  weekdayShare: 0,
+  orderWeekdays: [],
+  nextExpectedOrderAt: null,
+  daysUntilNextOrder: null,
+  orderOverdueDays: 0,
+  typicalOrderNetAmount: null,
+  currencyCode: null,
+  confidence: 0,
+}
 
 function dayMs(isoDate: string): number {
   return Date.parse(`${isoDate}T00:00:00.000Z`)
@@ -75,27 +96,32 @@ describe('projectDeliveryDates', () => {
   })
 
   it('returns nothing when the customer has no readable order rhythm', () => {
+    const dates = projectDeliveryDates(SILENT_RHYTHM, DEFAULT_BASKET_OPTIONS)
+
+    expect(dates).toEqual([])
+  })
+
+  /**
+   * A rhythm with no weekday to snap to still has weekdays it never lands on. Eight cycles of an
+   * eleven-day interval walk through the whole week, and two of those slots would otherwise fall on
+   * a closed weekend.
+   */
+  it('keeps every projected delivery off weekdays the customer never orders on', () => {
     const dates = projectDeliveryDates(
       {
-        orderCount: 1,
-        firstOrderAt: null,
-        lastOrderAt: null,
-        daysSinceLastOrder: null,
-        medianIntervalDays: null,
-        intervalSpreadDays: null,
-        dominantWeekday: null,
-        weekdayShare: 0,
-        nextExpectedOrderAt: null,
-        daysUntilNextOrder: null,
-        orderOverdueDays: 0,
-        typicalOrderNetAmount: null,
-        currencyCode: null,
-        confidence: 0,
+        ...SILENT_RHYTHM,
+        orderCount: 16,
+        lastOrderAt: '2026-06-30',
+        medianIntervalDays: 11,
+        orderWeekdays: [MONDAY, TUESDAY, FRIDAY],
       },
       DEFAULT_BASKET_OPTIONS,
     )
 
-    expect(dates).toEqual([])
+    expect(dates).toHaveLength(DEFAULT_BASKET_OPTIONS.maxDeliveries)
+    for (const date of dates) {
+      expect([MONDAY, TUESDAY, FRIDAY]).toContain(weekdayOf(date))
+    }
   })
 })
 

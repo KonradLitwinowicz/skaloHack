@@ -471,10 +471,10 @@ describe('negotiated prices editor', () => {
   it('shows the three engine figures next to the agreed price', () => {
     const { container } = renderEditor([{ productId: PRODUCT_ID, label: PRODUCT_ID, price: '25.0000' }], () => {})
     const text = container.textContent ?? ''
-    expect(text).toContain('160,6600 PLN')
-    expect(text).toContain('112,6100 PLN')
+    expect(text).toContain('160,66 PLN')
+    expect(text).toContain('112,61 PLN')
     expect(text).toContain('Raised to the floor')
-    expect(text).toContain('The engine quotes 112,6100 PLN and adds a minimum-margin warning.')
+    expect(text).toContain('The engine quotes 112,61 PLN and adds a minimum-margin warning.')
   })
 
   it('says which floor bound the line beside the number', () => {
@@ -491,8 +491,8 @@ describe('negotiated prices editor', () => {
   it('writes percentages with the same decimal separator as the money beside them', () => {
     const { container } = renderEditor([{ productId: PRODUCT_ID, label: PRODUCT_ID, price: '25.0000' }], () => {})
     const text = container.textContent ?? ''
-    expect(text).toContain('-269,3284%')
-    expect(text).not.toContain('-269.3284%')
+    expect(text).toContain('-269,33%')
+    expect(text).not.toContain('-269.33%')
   })
 
   it('names the product instead of printing its id once the catalogue answers', () => {
@@ -513,7 +513,7 @@ describe('negotiated prices editor', () => {
     )
     const text = container.textContent ?? ''
     expect(text).toContain('Ignored by the engine')
-    expect(text).toContain('The engine quotes 160,6600 PLN instead.')
+    expect(text).toContain('The engine quotes 160,66 PLN instead.')
   })
 
   it('adds a picked product as a new row with an empty price', async () => {

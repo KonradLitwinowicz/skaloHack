@@ -191,7 +191,7 @@
  import { officialModuleEntries } from './official-modules.generated'
  
  export type ModuleEntry = {
-@@ -68,6 +68,210 @@ export const moduleOverrideExamples: ModuleOverrides = {
+@@ -68,6 +68,213 @@
    },
  }
  
@@ -259,7 +259,6 @@
 +    defaultName: 'Pricing',
 +    pages: [
 +      { path: '/backend/pricing/calculator', priority: 10 },
-+      { path: '/backend/pricing/advisor', priority: 20 },
 +      { path: '/backend/pricing/deadstock', priority: 30 },
 +    ],
 +  },
@@ -356,6 +355,9 @@
 + *     holds zero rows.
 + *   - `playground` — a what-if bench for whoever tunes the parameters; operators quote on the
 + *     calculator.
++ *   - `advisor` — its suggestions, ladder and floors now run inside the calculator (the pricing
++ *     desk) on every basket change, with one-click apply; two sidebar entries for one job read as
++ *     two jobs. The page keeps rendering at its URL and the desk banner on it links back.
 + *   - `coverage` — "can I trust this number?" is answered inline on the figure (`ConfidenceBadge`),
 + *     where the question is actually asked.
 + *   - `docs` — the OpenAPI browser, an integrator's screen.
@@ -370,6 +372,7 @@
 +export const distributorNavHiddenPages: readonly string[] = [
 +  '/backend/pricing/shadow-observations',
 +  '/backend/pricing/playground',
++  '/backend/pricing/advisor',
 +  '/backend/pricing/coverage',
 +  '/backend/docs',
 +  '/backend/sales/documents/create',
@@ -402,7 +405,7 @@
  export const enabledModules: ModuleEntry[] = [
    { id: 'dashboards', from: '@open-mercato/core' },
    { id: 'auth', from: '@open-mercato/core' },
-@@ -81,6 +285,12 @@ export const enabledModules: ModuleEntry[] = [
+@@ -81,6 +288,12 @@
    { id: 'attachments', from: '@open-mercato/core' },
    { id: 'catalog', from: '@open-mercato/core' },
    { id: 'sales', from: '@open-mercato/core' },
@@ -415,7 +418,7 @@
    { id: 'warranty_claims', from: '@open-mercato/core' },
    { id: 'wms', from: '@open-mercato/core' },
    { id: 'api_keys', from: '@open-mercato/core' },
-@@ -164,6 +374,25 @@ export const enabledModules: ModuleEntry[] = [
+@@ -164,6 +377,25 @@
        },
      },
    },
@@ -549,6 +552,39 @@
 +    CatalogProductUnitConversion: asValue(CatalogProductUnitConversion),
    })
  }
+--- a/packages/core/src/modules/customer_accounts/api/portal/events/stream.ts
++++ b/packages/core/src/modules/customer_accounts/api/portal/events/stream.ts
+@@ -181,7 +181,13 @@
+ 
+       heartbeatTimer = setInterval(() => {
+         try {
+-          controller.enqueue(encoder.encode(':heartbeat\n\n'))
++          // `data:` and not a bare `:` comment. Comment lines are valid SSE keep-alive, but the
++          // browser's EventSource discards them WITHOUT firing `onmessage` — and `onmessage` is
++          // where the client resets its heartbeat watchdog. The heartbeat therefore never reached
++          // the watchdog, so every bridge timed out after 45s and reconnected, forever, on every
++          // open tab. The client already expects this exact payload and ignores it after resetting
++          // the timer (`event.data === ':heartbeat'`).
++          controller.enqueue(encoder.encode('data: :heartbeat\n\n'))
+         } catch {
+           // Stream may have been closed
+         }
+--- a/packages/core/src/modules/customers/components/detail/hooks/useCurrencyDictionary.ts
++++ b/packages/core/src/modules/customers/components/detail/hooks/useCurrencyDictionary.ts
+@@ -64,7 +64,12 @@
+     const client = entry?.client ?? new QueryClient()
+     const promise = entry?.promise ?? client.fetchQuery({ queryKey: QUERY_KEY, queryFn: fetchCurrencyDictionary, staleTime: STALE_TIME, gcTime: STALE_TIME })
+     if (!entry) cache.set(CACHE_KEY, { promise, client })
+-    promise.finally(() => { forceRender() })
++    // `then(a, b)` and not `finally`: `finally` passes the rejection straight through, and nothing
++    // was attached after it. A tenant with no currency dictionary configured — `fetchCurrencyDictionary`
++    // throws for exactly that — therefore produced an unhandled rejection on every page using this
++    // hook, which Next.js dev raises as a full-screen error overlay. The failure itself is not
++    // swallowed: react-query records it and it comes back out through `error` below.
++    promise.then(() => { forceRender() }, () => { forceRender() })
+   }, [])
+ 
+   const data = entry?.client.getQueryData<CurrencyDictionaryPayload>(QUERY_KEY) ?? null
 --- a/packages/core/src/modules/customers/widgets/dashboard/customer-todos/widget.client.tsx
 +++ b/packages/core/src/modules/customers/widgets/dashboard/customer-todos/widget.client.tsx
 @@ -1,11 +1,19 @@
@@ -1306,6 +1342,36 @@
      metadata: {
        shippingMethod: order.shippingMethodSnapshot
          ? cloneJson(order.shippingMethodSnapshot as Record<string, unknown>)
+--- a/packages/core/src/modules/sales/components/documents/SalesDocumentsTable.tsx
++++ b/packages/core/src/modules/sales/components/documents/SalesDocumentsTable.tsx
+@@ -157,7 +157,17 @@
+   const [page, setPage] = React.useState(1)
+   const [total, setTotal] = React.useState(0)
+   const [totalPages, setTotalPages] = React.useState(1)
+-  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }])
++  /**
++   * Orders are ordered by the date the document carries, not the row's insert time.
++   *
++   * An import writes thousands of historical orders in one pass, so `created_at` is the same
++   * minute for all of them and sorting on it returns them in no order a reader can name. Quotes
++   * keep `created_at`: `placed_at` is rarely filled on a quote, and sorting on a mostly-null
++   * column would float the empty ones to the top.
++   */
++  const [sorting, setSorting] = React.useState<SortingState>([
++    { id: kind === 'order' ? 'placedAt' : 'createdAt', desc: true },
++  ])
+   const [search, setSearch] = React.useState('')
+   const [filterValues, setFilterValues] = React.useState<FilterValues>({})
+   const [isLoading, setLoading] = React.useState(false)
+@@ -657,7 +667,7 @@
+       ),
+     },
+     {
+-      id: 'createdAt',
++      id: kind === 'order' ? 'placedAt' : 'createdAt',
+       accessorKey: 'date',
+       header: t('sales.documents.list.table.date', 'Date'),
+       cell: ({ row }) =>
 --- a/packages/core/src/modules/sales/lib/types.ts
 +++ b/packages/core/src/modules/sales/lib/types.ts
 @@ -134,6 +134,19 @@
@@ -1843,7 +1909,7 @@
      availableQuantity: String(availableQuantity),
 --- a/packages/core/src/modules/wms/lib/loadOperationalDashboard.ts
 +++ b/packages/core/src/modules/wms/lib/loadOperationalDashboard.ts
-@@ -1,5 +1,9 @@
+@@ -1,26 +1,40 @@
  import type { EntityManager } from '@mikro-orm/postgresql'
  import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 +import { createLogger } from '@open-mercato/shared/lib/logger'
@@ -1853,7 +1919,8 @@
  import {
    InventoryBalance,
    InventoryLot,
-@@ -8,19 +12,30 @@
+   InventoryMovement,
+-  InventoryReservation,
    ProductInventoryProfile,
    Warehouse,
  } from '../data/entities'
@@ -1885,7 +1952,7 @@
  }
  
  export type OperationalDashboardKpiId =
-@@ -63,6 +78,7 @@
+@@ -63,6 +77,7 @@
    lotNumber: string
    sku: string
    catalogVariantId: string
@@ -1893,7 +1960,7 @@
    expiresAt: string
    availableQuantity: number
    status: string
-@@ -185,6 +201,7 @@
+@@ -185,6 +200,7 @@
        lotNumber: lot.lotNumber,
        sku: lot.sku,
        catalogVariantId: lot.catalogVariantId,
@@ -1901,7 +1968,7 @@
        expiresAt: lot.expiresAt!.toISOString(),
        availableQuantity,
        status: lot.status,
-@@ -209,6 +226,7 @@
+@@ -209,6 +225,7 @@
        lotNumber: lot.lotNumber,
        sku: lot.sku,
        catalogVariantId: lot.catalogVariantId,
@@ -1909,7 +1976,7 @@
        expiresAt: lot.expiresAt!.toISOString(),
        availableQuantity,
        status: lot.status,
-@@ -219,24 +237,45 @@
+@@ -219,24 +236,50 @@
    return [...expiringRows, ...pastDueRows]
  }
  
@@ -1927,6 +1994,11 @@
 + * each equal to its own list: `belowReorder` and `belowSafety` respectively (see
 + * `evaluateLowStockThresholds`). `reorderCritical` is a subset of `lowStock`
 + * only while `safety_stock <= reorder_point`; nothing validates that ordering.
++ *
++ * This is the readable statement of the counting rule and the one the unit tests pin, but the
++ * dashboard no longer runs it: counting this way costs one hydrated entity per profile and per
++ * balance row of the organization on every request. `loadLowStockCounts` in this file counts the
++ * same pairs in SQL, and any change to the rule has to land in both.
 + */
  export function computeLowStockCounts(
    profiles: ProductInventoryProfile[],
@@ -1957,7 +2029,7 @@
  
    for (const profile of profiles) {
      const variantId = profile.catalogVariantId
-@@ -245,22 +284,27 @@
+@@ -245,22 +288,27 @@
      const safetyStock = toOperationalDashboardNumber(profile.safetyStock)
      if (reorderPoint <= 0 && safetyStock <= 0) continue
  
@@ -1993,7 +2065,7 @@
          reorderCriticalCount += 1
        }
      }
-@@ -323,6 +367,97 @@
+@@ -323,6 +371,97 @@
    return map
  }
  
@@ -2091,7 +2163,7 @@
  async function countMovementsBetween(
    em: EntityManager,
    scope: OperationalDashboardScope,
-@@ -460,6 +595,47 @@
+@@ -460,6 +599,47 @@
    return em.getConnection().execute<DailyCountRow[]>(sql, params)
  }
  
@@ -2139,15 +2211,158 @@
  async function loadPastDueLotCount(
    em: EntityManager,
    scope: OperationalDashboardScope,
-@@ -660,15 +836,12 @@
-     scope.warehouseId,
-   )
+@@ -563,6 +743,90 @@
+   return em.getConnection().execute<DailyCountRow[]>(sql, params)
+ }
  
++/**
++ * The SQL twin of {@link computeLowStockCounts}, counted in the database instead of over every
++ * profile and balance row of the organization.
++ *
++ * Both KPIs are counted over (variant, warehouse) PAIRS that have a balance row — the universe
++ * the KPI links land in, see the comment on `computeLowStockCounts` for why that universe and not
++ * "every warehouse". `count(distinct …)` reproduces the two `Set`s that function keeps: two
++ * profiles for one variant may both match, and the pair is still one position.
++ *
++ * Keep the two in step. `computeLowStockCounts` remains the readable statement of the rule and
++ * is the one the unit tests pin; this query is what the dashboard actually runs.
++ */
++async function loadLowStockCounts(
++  em: EntityManager,
++  scope: OperationalDashboardScope,
++): Promise<{ lowStockCount: number; reorderCriticalCount: number }> {
++  const params: unknown[] = [scope.organizationId, scope.tenantId]
++  let warehouseFilter = ''
++  if (scope.warehouseId) {
++    warehouseFilter = ' and b.warehouse_id = ?'
++    params.push(scope.warehouseId)
++  }
++  params.push(scope.organizationId, scope.tenantId)
++
++  const pairKey = "availability.catalog_variant_id::text || '::' || availability.warehouse_id::text"
++  const rows = await em.getConnection().execute<Array<{ low_stock: number | string | null; reorder_critical: number | string | null }>>(
++    `select
++       count(distinct ${pairKey})
++         filter (where availability.available <= coalesce(p.reorder_point, 0)) as low_stock,
++       count(distinct ${pairKey})
++         filter (where coalesce(p.safety_stock, 0) > 0
++                   and availability.available <= coalesce(p.safety_stock, 0)) as reorder_critical
++     from wms_product_inventory_profiles p
++     join (
++       select
++         b.catalog_variant_id,
++         b.warehouse_id,
++         sum(
++           coalesce(b.quantity_on_hand, 0)
++           - coalesce(b.quantity_reserved, 0)
++           - coalesce(b.quantity_allocated, 0)
++         ) as available
++       from wms_inventory_balances b
++       where b.organization_id = ?
++         and b.tenant_id = ?
++         and b.deleted_at is null${warehouseFilter}
++       group by b.catalog_variant_id, b.warehouse_id
++     ) availability
++       on availability.catalog_variant_id = p.catalog_variant_id
++     where p.organization_id = ?
++       and p.tenant_id = ?
++       and p.deleted_at is null
++       and p.catalog_variant_id is not null
++       and (coalesce(p.reorder_point, 0) > 0 or coalesce(p.safety_stock, 0) > 0)`,
++    params,
++  )
++  const row = rows[0]
++  return {
++    lowStockCount: toOperationalDashboardNumber(row?.low_stock ?? 0),
++    reorderCriticalCount: toOperationalDashboardNumber(row?.reorder_critical ?? 0),
++  }
++}
++
++/** Counts the aging reservations instead of hydrating one entity per reservation to read `.length`. */
++async function loadAgingReservationsCount(
++  em: EntityManager,
++  scope: OperationalDashboardScope,
++  agingCutoff: Date,
++): Promise<number> {
++  const params: unknown[] = [scope.organizationId, scope.tenantId, agingCutoff]
++  let sql = `
++    select count(*)::int as count
++    from wms_inventory_reservations r
++    where r.organization_id = ?
++      and r.tenant_id = ?
++      and r.deleted_at is null
++      and r.status = 'active'
++      and r.created_at <= ?
++  `
++  sql = appendWarehouseFilter(sql, params, scope.warehouseId)
++  const rows = await em.getConnection().execute<Array<{ count: number | string | null }>>(sql, params)
++  return toOperationalDashboardNumber(rows[0]?.count ?? 0)
++}
++
+ export async function loadOperationalDashboard(
+   em: EntityManager,
+   scope: OperationalDashboardScope,
+@@ -598,13 +862,18 @@
+ 
+   const warehouseFilter = scope.warehouseId ? { warehouse: scope.warehouseId } : {}
+ 
+-  const [profiles, balances, expiringSoonLots, pastDueLots, reservations, activityMovements] = await Promise.all([
+-    findWithDecryption(em, ProductInventoryProfile, baseScope, undefined, decryptionScope),
++  const [lotBalances, expiringSoonLots, pastDueLots, activityMovements] = await Promise.all([
++    // Only the rows the expiry cards read: a balance without a lot can never answer
++    // `resolveLotAvailableQuantity`, and the two low-stock KPIs are counted in SQL
++    // (`loadLowStockCounts`) rather than over hydrated balance and profile rows. On the
++    // reference dataset that is 92 rows here instead of 1527 balances plus 4073 profiles.
++    // No `populate`: both `balance.warehouse.id` and `balance.lot.id` are foreign keys, which
++    // an unpopulated MikroORM reference already carries.
+     findWithDecryption(
+       em,
+       InventoryBalance,
+-      { ...baseScope, ...warehouseFilter },
+-      { populate: ['warehouse', 'location', 'lot'] },
++      { ...baseScope, ...warehouseFilter, lot: { $ne: null } },
++      undefined,
+       decryptionScope,
+     ),
+     findWithDecryption(
+@@ -631,18 +900,6 @@
+     ),
+     findWithDecryption(
+       em,
+-      InventoryReservation,
+-      {
+-        ...baseScope,
+-        ...warehouseFilter,
+-        status: 'active',
+-        createdAt: { $lte: agingCutoff },
+-      },
+-      undefined,
+-      decryptionScope,
+-    ),
+-    findWithDecryption(
+-      em,
+       InventoryMovement,
+       { ...baseScope, ...warehouseFilter },
+       {
+@@ -654,21 +911,15 @@
+     ),
+   ])
+ 
+-  const { lowStockCount, reorderCriticalCount } = computeLowStockCounts(
+-    profiles,
+-    balances,
+-    scope.warehouseId,
+-  )
+-
 -  const expiringSoonCount = expiringSoonLots.filter(
 -    (lot) => resolveLotAvailableQuantity(lot.id, balances, scope.warehouseId) > 0,
 -  ).length
 -
-   const agingReservationsCount = reservations.length
+-  const agingReservationsCount = reservations.length
++  const [{ lowStockCount, reorderCriticalCount }, agingReservationsCount] = await Promise.all([
++    loadLowStockCounts(em, scope),
++    loadAgingReservationsCount(em, scope, agingCutoff),
++  ])
  
    const [
      todaysMoveCount,
@@ -2156,7 +2371,7 @@
      pastDueCount,
      lowStockSparklineRows,
      reorderCriticalSparklineRows,
-@@ -680,7 +853,16 @@
+@@ -680,7 +931,16 @@
    ] = await Promise.all([
      countMovementsBetween(em, scope, todayStart, tomorrowStart),
      countMovementsBetween(em, scope, yesterdayStart, todayStart),
@@ -2173,7 +2388,7 @@
      loadMovementDailyCounts(em, scope, trendStart, { types: ['adjust'], quantitySign: 'negative' }),
      loadMovementDailyCounts(em, scope, trendStart, { types: ['adjust'], quantitySign: 'negative' }),
      loadExpiringSoonDailyCounts(em, scope, dayBuckets),
-@@ -758,12 +940,20 @@
+@@ -758,12 +1018,20 @@
      }
    })
  
@@ -2181,7 +2396,8 @@
 +  const expiryLotRows = buildExpiryLotRows(
      expiringSoonLots,
      pastDueLots,
-     balances,
+-    balances,
++    lotBalances,
      scope.warehouseId,
    )
 +  const expiryProductTitles = await loadProductTitlesByVariantId(
@@ -2271,7 +2487,7 @@
  import {
    InventoryBalance,
    InventoryLot,
-@@ -50,6 +52,67 @@
+@@ -50,6 +52,82 @@
    } as InventoryBalance
  }
  
@@ -2296,8 +2512,13 @@
 +
 +type SqlCountStubs = {
 +  movements?: number
++  /** Per-window movement counts, matched on the range start the loader passes as the third param. */
++  movementsByStart?: Array<{ start: Date; count: number }>
 +  expiringSoonLots?: number
 +  pastDueLots?: number
++  lowStock?: number
++  reorderCritical?: number
++  agingReservations?: number
 +}
 +
 +/**
@@ -2306,17 +2527,27 @@
 + * silently re-assigns numbers to other KPIs as soon as a query is added.
 + */
 +function makeCountDispatchingExecute(stubs: SqlCountStubs): jest.Mock {
-+  return jest.fn(async (rawSql: unknown) => {
++  return jest.fn(async (rawSql: unknown, rawParams: unknown) => {
 +    const sql = String(rawSql)
 +    if (sql.includes('generate_series') || sql.includes("date_trunc('day'") || sql.includes("date_trunc('month'")) {
 +      return []
++    }
++    if (sql.includes('wms_product_inventory_profiles')) {
++      return [{ low_stock: stubs.lowStock ?? 0, reorder_critical: stubs.reorderCritical ?? 0 }]
++    }
++    if (sql.includes('wms_inventory_reservations')) {
++      return [{ count: stubs.agingReservations ?? 0 }]
 +    }
 +    if (sql.includes('wms_inventory_lots')) {
 +      if (sql.includes('l.expires_at >= ?')) return [{ count: stubs.expiringSoonLots ?? 0 }]
 +      return [{ count: stubs.pastDueLots ?? 0 }]
 +    }
 +    if (sql.includes('wms_inventory_movements')) {
-+      return [{ count: stubs.movements ?? 0 }]
++      const start = Array.isArray(rawParams) ? rawParams[2] : undefined
++      const matched = stubs.movementsByStart?.find(
++        (entry) => start instanceof Date && entry.start.getTime() === start.getTime(),
++      )
++      return [{ count: matched?.count ?? stubs.movements ?? 0 }]
 +    }
 +    return []
 +  })
@@ -2339,7 +2570,7 @@
  describe('loadOperationalDashboard helpers', () => {
    beforeEach(() => {
      findWithDecryptionMock.mockReset()
-@@ -81,6 +144,42 @@
+@@ -81,6 +159,42 @@
      })
    })
  
@@ -2382,10 +2613,123 @@
    it('mapDailyCountsToSparkline aligns SQL buckets with the dashboard trend window', () => {
      const now = new Date('2026-05-28T15:00:00.000Z')
      const dayBuckets = buildDailyBuckets(3, now)
-@@ -328,6 +427,86 @@
+@@ -255,7 +369,6 @@
+     jest.useFakeTimers()
+     jest.setSystemTime(now)
+ 
+-    const profile = makeProfile()
+     const balance = makeBalance()
+     const movement = {
+       id: '99999999-9999-4999-8999-999999999999',
+@@ -272,26 +385,20 @@
+     } as InventoryMovement
+ 
+     findWithDecryptionMock.mockImplementation(async (_em, entity) => {
+-      if (entity === ProductInventoryProfile) return [profile]
+       if (entity === InventoryBalance) return [balance]
+-      if (entity === InventoryReservation) return [] as InventoryReservation[]
+       if (entity === InventoryMovement) return [movement]
+       return []
+     })
+ 
+-    const execute = jest
+-      .fn()
+-      .mockResolvedValueOnce([{ count: 2 }])
+-      .mockResolvedValueOnce([{ count: 1 }])
+-      .mockResolvedValueOnce([{ count: 0 }])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValueOnce([])
+-      .mockResolvedValue([])
++    const todayStart = new Date('2026-05-28T00:00:00.000Z')
++    const yesterdayStart = new Date('2026-05-27T00:00:00.000Z')
++    const execute = makeCountDispatchingExecute({
++      lowStock: 1,
++      movementsByStart: [
++        { start: todayStart, count: 2 },
++        { start: yesterdayStart, count: 1 },
++      ],
++    })
+ 
+     const em = {
+       getConnection: () => ({ execute }),
+@@ -311,23 +418,150 @@
+     )
+     expect(payload.recentActivity).toHaveLength(1)
+     expect(payload.expiryLots).toEqual([])
++
++    // The two low-stock KPIs are counted in SQL. Hydrating every inventory profile of the
++    // organization to count them is what this endpoint used to do, and it is the single
++    // biggest cost the dashboard used to pay per open.
++    const loadedEntities = findWithDecryptionMock.mock.calls.map((call) => call[1])
++    expect(loadedEntities).not.toContain(ProductInventoryProfile)
++    expect(loadedEntities).not.toContain(InventoryReservation)
++
++    // Balances are fetched only for rows attached to a lot — the only ones the expiry cards
++    // can read — and without relation populates, since both ids come off the plain reference.
+     expect(findWithDecryptionMock).toHaveBeenCalledWith(
+       expect.anything(),
+-      ProductInventoryProfile,
++      InventoryBalance,
+       expect.objectContaining({
+         organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+         tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++        lot: { $ne: null },
+       }),
+       undefined,
+-      expect.objectContaining({
+-        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+-        tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+-      }),
++      expect.anything(),
+     )
+ 
      jest.useRealTimers()
    })
  
++  it('agingReservations KPI comes from a count query, not from hydrated reservation rows', async () => {
++    findWithDecryptionMock.mockImplementation(async () => [])
++    const execute = makeCountDispatchingExecute({ agingReservations: 12 })
++
++    const payload = await loadOperationalDashboard({ getConnection: () => ({ execute }) } as never, {
++      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++    })
++
++    expect(payload.kpis).toEqual(
++      expect.arrayContaining([expect.objectContaining({ id: 'agingReservations', count: 12 })]),
++    )
++  })
++
++  it('scopes the low-stock count query to the selected warehouse', async () => {
++    findOneWithDecryptionMock.mockResolvedValue({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' } as never)
++    findWithDecryptionMock.mockImplementation(async () => [])
++    const execute = makeCountDispatchingExecute({ lowStock: 3, reorderCritical: 1 })
++
++    const payload = await loadOperationalDashboard({ getConnection: () => ({ execute }) } as never, {
++      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
++      tenantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
++      warehouseId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
++    })
++
++    expect(payload.kpis).toEqual(
++      expect.arrayContaining([
++        expect.objectContaining({ id: 'lowStock', count: 3 }),
++        expect.objectContaining({ id: 'reorderCritical', count: 1 }),
++      ]),
++    )
++
++    const lowStockCall = execute.mock.calls.find(([sql]) =>
++      String(sql).includes('wms_product_inventory_profiles'),
++    )
++    expect(String(lowStockCall?.[0])).toContain('b.warehouse_id = ?')
++    expect(lowStockCall?.[1]).toContain('cccccccc-cccc-4ccc-8ccc-cccccccccccc')
++  })
++
 +  it('expiringSoon KPI comes from an exact count, not from the capped lot row list', async () => {
 +    const now = new Date('2026-05-28T12:00:00.000Z')
 +    jest.useFakeTimers()
@@ -2469,7 +2813,7 @@
    it('startOfUtcDay normalizes timestamps to UTC midnight', () => {
      expect(startOfUtcDay(new Date('2026-05-28T23:59:59.000Z')).toISOString()).toBe(
        '2026-05-28T00:00:00.000Z',
-@@ -368,4 +547,152 @@
+@@ -368,4 +602,152 @@
  
      jest.useRealTimers()
    })
@@ -2865,7 +3209,7 @@
  import { officialModuleEntries } from './official-modules.generated'
  
  export type ModuleEntry = {
-@@ -68,6 +68,210 @@ export const moduleOverrideExamples: ModuleOverrides = {
+@@ -68,6 +68,213 @@
    },
  }
  
@@ -2933,7 +3277,6 @@
 +    defaultName: 'Pricing',
 +    pages: [
 +      { path: '/backend/pricing/calculator', priority: 10 },
-+      { path: '/backend/pricing/advisor', priority: 20 },
 +      { path: '/backend/pricing/deadstock', priority: 30 },
 +    ],
 +  },
@@ -3030,6 +3373,9 @@
 + *     holds zero rows.
 + *   - `playground` — a what-if bench for whoever tunes the parameters; operators quote on the
 + *     calculator.
++ *   - `advisor` — its suggestions, ladder and floors now run inside the calculator (the pricing
++ *     desk) on every basket change, with one-click apply; two sidebar entries for one job read as
++ *     two jobs. The page keeps rendering at its URL and the desk banner on it links back.
 + *   - `coverage` — "can I trust this number?" is answered inline on the figure (`ConfidenceBadge`),
 + *     where the question is actually asked.
 + *   - `docs` — the OpenAPI browser, an integrator's screen.
@@ -3044,6 +3390,7 @@
 +export const distributorNavHiddenPages: readonly string[] = [
 +  '/backend/pricing/shadow-observations',
 +  '/backend/pricing/playground',
++  '/backend/pricing/advisor',
 +  '/backend/pricing/coverage',
 +  '/backend/docs',
 +  '/backend/sales/documents/create',
@@ -3076,7 +3423,7 @@
  export const enabledModules: ModuleEntry[] = [
    { id: 'dashboards', from: '@open-mercato/core' },
    { id: 'auth', from: '@open-mercato/core' },
-@@ -81,6 +285,12 @@ export const enabledModules: ModuleEntry[] = [
+@@ -81,6 +288,12 @@
    { id: 'attachments', from: '@open-mercato/core' },
    { id: 'catalog', from: '@open-mercato/core' },
    { id: 'sales', from: '@open-mercato/core' },
@@ -3089,7 +3436,7 @@
    { id: 'warranty_claims', from: '@open-mercato/core' },
    { id: 'wms', from: '@open-mercato/core' },
    { id: 'api_keys', from: '@open-mercato/core' },
-@@ -135,6 +345,25 @@ export const enabledModules: ModuleEntry[] = [
+@@ -135,6 +348,25 @@
    { id: 'webhooks', from: '@open-mercato/webhooks' },
    { id: 'customer_accounts', from: '@open-mercato/core' },
    { id: 'portal', from: '@open-mercato/core' },
@@ -3115,6 +3462,64 @@
    { id: 'ratelimit_probe', from: '@app' },
  ]
  
+--- a/packages/events/src/modules/events/api/stream/route.ts
++++ b/packages/events/src/modules/events/api/stream/route.ts
+@@ -261,7 +261,13 @@
+       // Start heartbeat to keep connection alive
+       heartbeatTimer = setInterval(() => {
+         try {
+-          controller.enqueue(encoder.encode(':heartbeat\n\n'))
++          // `data:` and not a bare `:` comment. Comment lines are valid SSE keep-alive, but the
++          // browser's EventSource discards them WITHOUT firing `onmessage` — and `onmessage` is
++          // where the client resets its heartbeat watchdog. The heartbeat therefore never reached
++          // the watchdog, so every bridge timed out after 45s and reconnected, forever, on every
++          // open tab. The client already expects this exact payload and ignores it after resetting
++          // the timer (`event.data === ':heartbeat'`).
++          controller.enqueue(encoder.encode('data: :heartbeat\n\n'))
+         } catch {
+           // Stream may have been closed
+         }
+--- a/packages/events/src/modules/events/api/stream/__tests__/route.test.ts
++++ b/packages/events/src/modules/events/api/stream/__tests__/route.test.ts
+@@ -104,6 +104,38 @@
+     try { await reader.cancel() } catch {}
+   })
+ 
++  /**
++   * The heartbeat has to arrive as a `data:` line, not as a bare `:` comment.
++   *
++   * EventSource discards comment lines without firing `onmessage`, and `onmessage` is where the
++   * client resets its 45-second watchdog. Sent as a comment, the keep-alive never reached the
++   * watchdog: every bridge timed out and reconnected every 45 seconds, on every open tab, and the
++   * abandoned connections ate the browser's per-origin socket budget until the rest of the page
++   * had none left. The client already expects this payload and drops it after resetting the timer.
++   */
++  it('sends the heartbeat as a data line so the client watchdog actually sees it', async () => {
++    jest.useFakeTimers()
++    try {
++      const { req } = makeTrackedRequest()
++      const res = await GET(req)
++      const reader = (res.body as ReadableStream<Uint8Array>).getReader()
++
++      const first = await reader.read()
++      expect(new TextDecoder().decode(first.value)).toBe(': connected\n\n')
++
++      jest.advanceTimersByTime(30_000)
++      const beat = await reader.read()
++      const text = new TextDecoder().decode(beat.value)
++
++      expect(text).toBe('data: :heartbeat\n\n')
++      expect(text.startsWith(':')).toBe(false)
++
++      try { await reader.cancel() } catch {}
++    } finally {
++      jest.useRealTimers()
++    }
++  })
++
+   it('uses trusted organization scope when the payload omits it', async () => {
+     const { req } = makeTrackedRequest()
+     const res = await GET(req)
 --- a/packages/shared/src/modules/dashboard/widgets.ts
 +++ b/packages/shared/src/modules/dashboard/widgets.ts
 @@ -14,6 +14,14 @@
@@ -3698,6 +4103,201 @@
 +  )
 +}
 --- /dev/null
++++ b/packages/ui/src/backend/utils/sharedApiGet.ts
+@@ -0,0 +1,89 @@
++"use client"
++
++import { apiCall, type ApiCallResult } from './apiCall'
++
++export type SharedApiGetOptions = {
++  /**
++   * Bypass the settled response and start a new request. A request already in flight for the
++   * same URL is joined rather than duplicated, so two widgets refreshing in the same moment
++   * still produce one round trip.
++   */
++  force?: boolean
++  /** How long a settled OK response keeps serving later callers for the same URL. */
++  freshMs?: number
++}
++
++const DEFAULT_FRESH_MS = 10_000
++
++type SettledEntry = { settledAt: number; call: ApiCallResult<unknown> }
++
++const inFlightByUrl = new Map<string, Promise<ApiCallResult<unknown>>>()
++const settledByUrl = new Map<string, SettledEntry>()
++// Bumped on every clear. A request issued before a clear must not write its answer into the
++// cache afterwards: it would overwrite the fresher response the clear was made to fetch.
++let generation = 0
++
++function prune(now: number, freshMs: number): void {
++  for (const [url, entry] of settledByUrl) {
++    if (now - entry.settledAt >= freshMs) settledByUrl.delete(url)
++  }
++}
++
++/**
++ * GETs a URL at most once per freshness window, however many callers ask for it.
++ *
++ * Two dashboard widgets fed by the same endpoint (stock gaps and expiring stock both read
++ * `/api/wms/dashboard/operational`) otherwise issue the request twice on every dashboard open,
++ * and each one costs the server a full container build, RBAC resolve, org-scope resolve and the
++ * endpoint's whole query set. Callers keep their own parsing and error handling — this only
++ * decides whether the wire request happens.
++ *
++ * Only OK responses are remembered: a failure must not be pinned onto the next caller, who may
++ * be a retry. Failures still share the in-flight promise, because a request that has not
++ * returned yet cannot be known to have failed.
++ */
++export async function sharedApiGet<TReturn = Record<string, unknown>>(
++  url: string,
++  options?: SharedApiGetOptions,
++): Promise<ApiCallResult<TReturn>> {
++  const freshMs = options?.freshMs ?? DEFAULT_FRESH_MS
++  const now = Date.now()
++  prune(now, freshMs)
++
++  if (options?.force) settledByUrl.delete(url)
++  else {
++    const cached = settledByUrl.get(url)
++    if (cached && now - cached.settledAt < freshMs) return cached.call as ApiCallResult<TReturn>
++  }
++
++  const pending = inFlightByUrl.get(url)
++  if (pending) return pending as Promise<ApiCallResult<TReturn>>
++
++  const issuedAtGeneration = generation
++  const request: Promise<ApiCallResult<unknown>> = apiCall<TReturn>(url)
++    .then((call) => {
++      if (call.ok && issuedAtGeneration === generation) {
++        settledByUrl.set(url, { settledAt: Date.now(), call })
++      }
++      return call as ApiCallResult<unknown>
++    })
++    .finally(() => {
++      // Only retire this promise. A cache clear while it was in flight may have let a newer
++      // request take the slot, and that one still has callers waiting on it.
++      if (inFlightByUrl.get(url) === request) inFlightByUrl.delete(url)
++    })
++
++  inFlightByUrl.set(url, request)
++  return request as Promise<ApiCallResult<TReturn>>
++}
++
++/**
++ * Drops every remembered response and forgets every request in flight. Exported for tests and
++ * for invalidation after a mutation; a forgotten in-flight request still resolves for the
++ * callers already waiting on it, it just stops being handed to new ones.
++ */
++export function clearSharedApiGetCache(): void {
++  generation += 1
++  settledByUrl.clear()
++  inFlightByUrl.clear()
++}
+--- /dev/null
++++ b/packages/ui/src/backend/utils/__tests__/sharedApiGet.test.ts
+@@ -0,0 +1,100 @@
++jest.mock('../../utils/apiCall', () => ({
++  apiCall: jest.fn(),
++}))
++
++import { apiCall } from '../../utils/apiCall'
++import { clearSharedApiGetCache, sharedApiGet } from '../../utils/sharedApiGet'
++
++const apiCallMock = apiCall as jest.MockedFunction<typeof apiCall>
++
++const URL_A = '/api/wms/dashboard/operational'
++
++function ok<T>(result: T) {
++  return { ok: true, status: 200, result }
++}
++
++beforeEach(() => {
++  apiCallMock.mockReset()
++  clearSharedApiGetCache()
++})
++
++describe('sharedApiGet', () => {
++  it('serves concurrent callers of one URL from a single request', async () => {
++    apiCallMock.mockResolvedValue(ok({ kpis: [] }) as never)
++
++    const [first, second] = await Promise.all([
++      sharedApiGet(URL_A),
++      sharedApiGet(URL_A),
++    ])
++
++    expect(apiCallMock).toHaveBeenCalledTimes(1)
++    expect(first.result).toBe(second.result)
++  })
++
++  it('serves a later caller from the settled response while it is fresh', async () => {
++    apiCallMock.mockResolvedValue(ok({ kpis: [] }) as never)
++
++    await sharedApiGet(URL_A)
++    await sharedApiGet(URL_A)
++
++    expect(apiCallMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('refetches once the freshness window has passed', async () => {
++    apiCallMock.mockResolvedValue(ok({ kpis: [] }) as never)
++
++    await sharedApiGet(URL_A, { freshMs: 0 })
++    await sharedApiGet(URL_A, { freshMs: 0 })
++
++    expect(apiCallMock).toHaveBeenCalledTimes(2)
++  })
++
++  it('forces a new request when a widget refreshes', async () => {
++    apiCallMock.mockResolvedValue(ok({ kpis: [] }) as never)
++
++    await sharedApiGet(URL_A)
++    await sharedApiGet(URL_A, { force: true })
++
++    expect(apiCallMock).toHaveBeenCalledTimes(2)
++  })
++
++  it('keeps separate URLs apart', async () => {
++    apiCallMock.mockResolvedValue(ok({ kpis: [] }) as never)
++
++    await sharedApiGet(URL_A)
++    await sharedApiGet('/api/distributor_workspace/dashboard/next-actions')
++
++    expect(apiCallMock).toHaveBeenCalledTimes(2)
++  })
++
++  // A failure that was remembered would be replayed to the retry that the operator just asked
++  // for, so the widget could never recover without a reload.
++  it('does not remember a failed response', async () => {
++    apiCallMock.mockResolvedValue({ ok: false, status: 500, result: null } as never)
++
++    await sharedApiGet(URL_A)
++    await sharedApiGet(URL_A)
++
++    expect(apiCallMock).toHaveBeenCalledTimes(2)
++  })
++
++  it('lets a new request take the slot after the cache is cleared mid-flight', async () => {
++    let resolveFirst: ((value: unknown) => void) | null = null
++    apiCallMock.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }) as never)
++    apiCallMock.mockResolvedValue(ok({ kpis: ['second'] }) as never)
++
++    const stalled = sharedApiGet(URL_A)
++    clearSharedApiGetCache()
++    const second = await sharedApiGet(URL_A)
++
++    expect(second.result).toEqual({ kpis: ['second'] })
++
++    resolveFirst?.(ok({ kpis: ['first'] }))
++    await stalled
++
++    // The stalled request settling must not evict the live one.
++    const third = await sharedApiGet(URL_A)
++    expect(third.result).toEqual({ kpis: ['second'] })
++    expect(apiCallMock).toHaveBeenCalledTimes(2)
++  })
++})
+--- /dev/null
 +++ b/packages/core/src/modules/dashboards/api/layout/__tests__/route.default-seed-order.test.ts
 @@ -0,0 +1,306 @@
 +/**
@@ -4274,6 +4874,131 @@
 +      })
 +      expect(context.resolve).toBeUndefined()
 +    })
++  })
++})
+--- /dev/null
++++ b/packages/core/src/modules/sales/components/documents/__tests__/SalesDocumentsTable.defaultSort.test.tsx
+@@ -0,0 +1,122 @@
++/**
++ * @jest-environment jsdom
++ */
++import * as React from 'react'
++import { render, act } from '@testing-library/react'
++import { SalesDocumentsTable } from '../SalesDocumentsTable'
++
++jest.mock('../../useSalesChannelsEnabled', () => ({
++  SALES_CHANNELS_TOGGLE_ID: 'sales_channels_enabled',
++  useSalesChannelsEnabled: () => ({ enabled: true, isLoading: false }),
++}))
++
++// Capture the props handed to DataTable so we can assert the sticky-column wiring.
++const mockDataTable = jest.fn()
++const mockApiCall = jest.fn()
++
++jest.mock('@open-mercato/ui/backend/DataTable', () => ({
++  withDataTableNamespaces: (mappedRow: Record<string, unknown>) => mappedRow,
++  DataTable: (props: any) => {
++    mockDataTable(props)
++    return null
++  },
++}))
++
++jest.mock('@open-mercato/ui/backend/Page', () => ({
++  Page: ({ children }: any) => <div>{children}</div>,
++  PageBody: ({ children }: any) => <div>{children}</div>,
++}))
++
++jest.mock('@open-mercato/ui/backend/RowActions', () => ({
++  RowActions: ({ children }: any) => <div>{children}</div>,
++}))
++
++jest.mock('@open-mercato/ui/primitives/button', () => ({
++  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
++}))
++
++jest.mock('@open-mercato/ui/backend/utils/apiCall', () => ({
++  apiCall: (...args: any[]) => mockApiCall(...args),
++  withScopedApiRequestHeaders: (_header: unknown, callback: any) => callback?.(),
++}))
++
++jest.mock('@open-mercato/ui/backend/utils/optimisticLock', () => ({
++  buildOptimisticLockHeader: () => ({}),
++}))
++
++jest.mock('@open-mercato/ui/backend/utils/crud', () => ({
++  buildCrudExportUrl: () => '/export.csv',
++  deleteCrud: jest.fn(),
++}))
++
++jest.mock('@open-mercato/ui/backend/FlashMessages', () => ({
++  flash: jest.fn(),
++}))
++
++jest.mock('@open-mercato/ui/backend/confirm-dialog', () => ({
++  useConfirmDialog: () => ({ confirm: jest.fn(), ConfirmDialogElement: null }),
++}))
++
++jest.mock('@open-mercato/shared/lib/frontend/useOrganizationScope', () => ({
++  useOrganizationScopeVersion: () => 1,
++}))
++
++jest.mock('@open-mercato/shared/lib/i18n/context', () => {
++  // Stable reference: the real useT() is memoized. Returning a fresh function
++  // each render would re-create the data-load callback and loop the effect.
++  const translate = (key: string, fallback?: string) => fallback ?? key
++  return { useT: () => translate }
++})
++
++jest.mock('@open-mercato/core/modules/dictionaries/components/dictionaryAppearance', () => ({
++  DictionaryValue: ({ value }: any) => <span>{value}</span>,
++  createDictionaryMap: () => ({}),
++  normalizeDictionaryEntries: () => [],
++}))
++
++jest.mock('next/link', () => ({
++  __esModule: true,
++  default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
++}))
++
++jest.mock('next/navigation', () => ({
++  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn() }),
++}))
++
++/**
++ * An import writes thousands of historical orders in one pass, so `created_at` is the same minute
++ * across all of them: a list ordered by it comes back in no order a reader can name, and the
++ * newest invoice is nowhere near the top.
++ */
++describe('SalesDocumentsTable default ordering', () => {
++  beforeEach(() => {
++    jest.clearAllMocks()
++    mockApiCall.mockResolvedValue({ ok: true, result: { items: [] } })
++  })
++
++  it('opens the order list on the newest document date', async () => {
++    await act(async () => {
++      render(<SalesDocumentsTable kind="order" />)
++    })
++
++    const url = String(mockApiCall.mock.calls.at(-1)?.[0] ?? '')
++    expect(url).toContain('sortField=placedAt')
++    expect(url).toContain('sortDir=desc')
++
++    const props = mockDataTable.mock.calls.at(-1)?.[0]
++    expect(props?.sorting?.[0]).toEqual({ id: 'placedAt', desc: true })
++    // The Date column has to carry the same id, or clicking its header would sort by something
++    // other than the date it renders.
++    expect(props?.columns?.at(-1)?.id).toBe('placedAt')
++  })
++
++  it('leaves quotes on created_at, where placed_at is mostly empty', async () => {
++    await act(async () => {
++      render(<SalesDocumentsTable kind="quote" />)
++    })
++
++    const url = String(mockApiCall.mock.calls.at(-1)?.[0] ?? '')
++    expect(url).toContain('sortField=createdAt')
++    expect(url).toContain('sortDir=desc')
 +  })
 +})
 --- /dev/null

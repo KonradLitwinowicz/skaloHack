@@ -71,10 +71,14 @@ export async function GET(req: Request): Promise<Response> {
     )
 
     const rows = loaded.positions.map((position) => toDeadstockRow(position, loaded.asOf))
-    // Totals are computed over the whole catalogue before filtering: "82 972 zl is asleep" must not
+    // Totals are computed over every position before filtering: "82 972 zl is asleep" must not
     // change because somebody typed a word into the search box.
+    //
+    // `catalogCount` comes from the loader rather than from `rows.length`: positions are built
+    // only for stocked products, so the row count answers "how many positions hold stock", and
+    // the catalogue size is a different — larger — number.
     const stockedCount = rows.filter((row) => row.onHandQuantity !== '0.0000').length
-    const totals = deadstockTotals(rows, stockedCount, rows.length)
+    const totals = deadstockTotals(rows, stockedCount, loaded.catalogCount)
 
     const filtered = filterDeadstockRows(rows, query)
     const sorted = sortDeadstockRows(filtered, query.sort, query.dir)

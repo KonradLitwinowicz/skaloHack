@@ -1,10 +1,13 @@
 "use client"
 
 import * as React from 'react'
+import Link from 'next/link'
+import { Button } from '@open-mercato/ui/primitives/button'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
 import { DocumentMarginPanel } from '../../components/DocumentMarginPanel'
+import { buildDeskHref } from '../../lib/frontend/basketDesk'
 import { simulateQuote, type SimulateLine } from '../../lib/frontend/quoteClient'
 import type { QuoteResponse } from '../../lib/frontend/quoteTypes'
 
@@ -66,6 +69,7 @@ export function DocumentMarginTabWidget({ context }: InjectionWidgetComponentPro
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [reloadToken, setReloadToken] = React.useState(0)
+  const [deskLines, setDeskLines] = React.useState<SimulateLine[]>([])
 
   const valid = isDocumentPricingContext(context) ? context : null
   const documentId = valid?.record.id ?? null
@@ -101,6 +105,7 @@ export function DocumentMarginTabWidget({ context }: InjectionWidgetComponentPro
         }
         const rows = Array.isArray(linesCall.result?.items) ? linesCall.result.items : []
         const simulateLines = toSimulateLines(rows)
+        setDeskLines(simulateLines)
         if (simulateLines.length === 0) {
           setQuote(null)
           return
@@ -130,7 +135,21 @@ export function DocumentMarginTabWidget({ context }: InjectionWidgetComponentPro
 
   if (!valid) return null
 
+  // The desk opens with this document's basket and customer, so "what if they took twice as much"
+  // is one click away and the document itself stays untouched.
+  const deskHref = deskLines.length > 0
+    ? buildDeskHref({ customerId: customerEntityId, lines: deskLines })
+    : null
+
   return (
+    <div className="space-y-4">
+      {deskHref ? (
+        <div className="flex justify-end">
+          <Button asChild variant="outline" size="sm">
+            <Link href={deskHref}>{t('pricing_engine.widgets.documentMargin.openDesk', 'Rework in the pricing desk')}</Link>
+          </Button>
+        </div>
+      ) : null}
     <DocumentMarginPanel
       quote={quote}
       currencyCode={quote?.currencyCode ?? currencyCode ?? ''}
@@ -143,6 +162,7 @@ export function DocumentMarginTabWidget({ context }: InjectionWidgetComponentPro
       )}
       onRetry={() => setReloadToken((token) => token + 1)}
     />
+    </div>
   )
 }
 

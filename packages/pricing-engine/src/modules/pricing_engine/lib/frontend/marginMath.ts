@@ -115,12 +115,18 @@ export function markupFromMargin(marginPercent: string): string {
 }
 
 /**
- * The only money formatter the pricing screens may use: '1 234,5600 PLN'.
- * Deliberately not `Intl.NumberFormat` — the engine reports to 4 decimal places and a locale-driven
- * formatter would silently round the figures away from the ledger they are supposed to mirror.
+ * The only money formatter the pricing screens may use: '1 234,56 PLN'.
+ * Money on screen is zloty and grosze. The engine's four-decimal strings stay internal so that
+ * repeated arithmetic does not drift; only this last step, the one a person reads, rounds to a
+ * coin. Deliberately not `Intl.NumberFormat`: the grouping and separators are fixed so the same
+ * ledger figure never renders two ways depending on the browser locale.
  */
+const DISPLAY_DECIMAL_PLACES = 2
+
 export function formatMoney(value: string, currencyCode: string): string {
-  const fixed = toFixedString(toNumber(value))
+  const amount = toNumber(value)
+  const rounded = Number.isFinite(amount) ? amount.toFixed(DISPLAY_DECIMAL_PLACES) : (0).toFixed(DISPLAY_DECIMAL_PLACES)
+  const fixed = rounded === `-${(0).toFixed(DISPLAY_DECIMAL_PLACES)}` ? (0).toFixed(DISPLAY_DECIMAL_PLACES) : rounded
   const negative = fixed.startsWith('-')
   const [integerPart, fractionPart] = (negative ? fixed.slice(1) : fixed).split('.')
   const grouped = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP_SEPARATOR)

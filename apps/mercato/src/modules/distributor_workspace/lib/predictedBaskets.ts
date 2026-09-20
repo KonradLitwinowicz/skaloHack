@@ -20,7 +20,7 @@
  */
 
 import type { ConfidenceBand, CustomerOrderRhythm, OrderPrediction } from './orderForecast'
-import { median, toDayStart, weekdayOf } from './orderForecast'
+import { median, snapToObservedWeekday, snapToWeekday, toDayStart, weekdayOf } from './orderForecast'
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -84,20 +84,17 @@ function dayDiff(laterMs: number, earlierMs: number): number {
   return Math.round((laterMs - earlierMs) / MILLISECONDS_PER_DAY)
 }
 
-function snapToWeekday(dayMs: number, weekday: number): number {
-  const current = weekdayOf(dayMs)
-  let delta = weekday - current
-  if (delta > 3) delta -= 7
-  if (delta < -3) delta += 7
-  return dayMs + delta * MILLISECONDS_PER_DAY
-}
-
 /**
  * The customer's next few delivery dates, projected from their own order rhythm.
  *
  * Starts one interval after the last order and runs forward, so a customer who is late still gets
  * an anchor in the past — the delivery that did not come is exactly the one the operator needs to
  * see, and dropping it would silently move every overdue line into a basket of its own.
+ *
+ * Every projected slot passes the same weekday correction the per-product dates do: onto the
+ * customer's habitual weekday when they have one, otherwise off any weekday they have never ordered
+ * on. A van slot the customer keeps on Tuesdays stays on Tuesdays eight cycles out, instead of
+ * drifting a day per cycle on a rhythm the median rounded.
  */
 export function projectDeliveryDates(
   rhythm: CustomerOrderRhythm,
@@ -112,8 +109,11 @@ export function projectDeliveryDates(
 
   const dates: number[] = []
   for (let index = 1; index <= options.maxDeliveries; index += 1) {
-    let candidate = lastMs + index * step * MILLISECONDS_PER_DAY
-    if (rhythm.dominantWeekday !== null) candidate = snapToWeekday(candidate, rhythm.dominantWeekday)
+    const projected = lastMs + index * step * MILLISECONDS_PER_DAY
+    const candidate =
+      rhythm.dominantWeekday === null
+        ? snapToObservedWeekday(projected, rhythm.orderWeekdays)
+        : snapToWeekday(projected, rhythm.dominantWeekday)
     dates.push(candidate)
   }
   return dates

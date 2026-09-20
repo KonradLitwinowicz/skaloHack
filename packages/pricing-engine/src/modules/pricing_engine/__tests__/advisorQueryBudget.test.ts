@@ -129,7 +129,14 @@ describe('advisory run query budget', () => {
     expect(all.queries).toHaveLength(one.queries.length)
   })
 
-  it('costs a whole second prefetch per basket when each is quoted separately', async () => {
+  /**
+   * The price-comparison screen quotes one basket eight times over — the WZ as it happened, the
+   * selected volume, the offer channel and a five-step volume ladder — and the desk re-quotes on
+   * every keystroke. The inputs are identical every time: same tenant, same products, same day.
+   * They are therefore loaded once per EntityManager, which is forked per request, so the saving
+   * never spans two requests.
+   */
+  it('re-quotes the same basket without loading its inputs a second time', async () => {
     const { em, queries } = createCountingEm(seedRows())
     const service = createPricingService({ em: em as never, container: NO_CATALOG })
     const context = buildContext({ customerId: null })
@@ -138,6 +145,26 @@ describe('advisory run query budget', () => {
     const afterFirst = queries.length
     await service.quote(context, { persist: false })
 
-    expect(queries.length - afterFirst).toBe(afterFirst)
+    expect(queries.length).toBe(afterFirst)
+  })
+
+  it('reloads for a different basket, and for the same basket on another EntityManager', async () => {
+    const { em, queries } = createCountingEm(seedRows())
+    const service = createPricingService({ em: em as never, container: NO_CATALOG })
+    const context = buildContext({ customerId: null })
+
+    await service.quote(context, { persist: false })
+    const afterFirst = queries.length
+
+    // Another customer is another set of customer-scoped parameters.
+    await service.quote(buildContext({ customerId: 'customer-2' }), { persist: false })
+    expect(queries.length).toBeGreaterThan(afterFirst)
+
+    // A second request gets its own fork and must see whatever was configured in between.
+    const second = createCountingEm(seedRows())
+    await createPricingService({ em: second.em as never, container: NO_CATALOG }).quote(context, {
+      persist: false,
+    })
+    expect(second.queries.length).toBe(afterFirst)
   })
 })

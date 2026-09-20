@@ -86,12 +86,42 @@ deviation — a single holiday-week double order must not hide an otherwise perf
 predicted quantity is the median of past quantities, rounded to a whole unit when every past
 purchase was a whole unit (nobody can pick "21.5 packs").
 
-**Dates.** `nextExpectedAt` is one step from the last purchase, weekday-snapped when a weekday
-pattern holds — deliberately NOT rolled forward onto the next future slot. Rolling forward reads
+**Dates.** `nextExpectedAt` is one step from the last purchase, then corrected by the weekday —
+deliberately NOT rolled forward onto the next future slot. Rolling forward reads
 well until the customer is late and then lies in the most damaging direction available: a customer
 41 days past due on a monthly product would be shown a date a fortnight in the future, telling the
 operator to relax about exactly the account they should be phoning. Sorting by that date therefore
 puts the most overdue rows at the top, where the calls to make are.
+
+**The weekday correction.** The interval places the date and the weekday corrects it, never the
+reverse, and both corrections are bounded by half a week so neither can turn one cycle into the
+next. A habitual weekday (`weekdayShare >= 0.6`) takes the date onto itself whether or not the
+interval sits on a clean 7-day grid — ordering every nine days but always on a Tuesday is a Tuesday
+habit, and the old rule, which required both, walked such a customer straight off their own slot.
+Failing a habitual weekday, the customer's **order calendar** — every weekday they have actually
+ordered on, read from all their orders rather than from one product's handful of purchases — takes
+the date off a weekday they never use. That calendar is the rule that stops an eleven-day rhythm
+proposing a Saturday delivery to a wholesaler whose van does not run at the weekend. It is trusted
+only from `weekdayCalendarMinOrders: 12` orders up: a weekday missing from six orders is missing by
+chance. The same correction runs on the basket anchors in `lib/predictedBaskets.ts`, so a Tuesday
+van slot stays on Tuesdays eight cycles out.
+
+Three histories, run through the engine, showing what the rule moves and what it leaves alone. The
+"interval alone" column is what the code produced before the correction existed:
+
+| History | Median | Interval alone | Engine now |
+|---|---|---|---|
+| **A.** Every Tuesday, 14 weeks | 7 d | Tue 14.04 | Tue 14.04 — unchanged |
+| **B.** Tuesdays plus a Thursday top-up every second week, last order a Tuesday | 5 d | **Sun 19.04** | **Tue 21.04** |
+| **C.** Every ~11 days, never at the weekend | 11 d | **Sat 11.07** | **Fri 10.07** |
+
+A is the case that already worked and must keep working: the weekday habit and the 7-day grid agree,
+and the old rule required both. B is what that conjunction cost — a standing Tuesday order whose
+median was dragged off the grid by irregular top-ups lost its weekday entirely and was projected
+onto a Sunday. C has no weekday to snap to at all; what it has is sixteen orders without a single
+weekend among them. Both B and C are covered by unit tests in `lib/__tests__/orderForecast.test.ts`,
+alongside the negative one: at seven orders the calendar is ignored and the Saturday stands, because
+a weekday missing from seven orders is not yet evidence of anything.
 
 **Backtest — `lib/orderForecastBacktest.ts`.** Sliding cutoffs over the history; at each one the
 forecast is rebuilt from the orders that existed then and scored against what actually arrived
@@ -150,7 +180,11 @@ in the Daily work group directly under Orders (`apps/mercato/src/modules.ts`).
 **Language.** Counted nouns go through `lib/pluralize.ts` and `Intl.PluralRules`: Polish needs
 three forms and a naive template produced "za 1 dni" and "2 pozycji" on a screen read all morning.
 Weekday names exist twice — `weekday.*` nominative for a date label, `weekdayIn.*` accusative after
-"usually on" — because "sobota 19.09" and "zwykle w sobotę" are different cases of the same word.
+"usually" — because "sobota 19.09" and "zwykle w sobotę" are different cases of the same word. In
+Polish the preposition lives in the `weekdayIn.*` value rather than in the phrase in front of it,
+because "we wtorek" takes a different one from "w środę"; English keeps "mostly on" + the day. Short
+weekday abbreviations (history dates, the filter chips) come from `Intl` instead of a fourth key set,
+so they cannot drift from the dates they sit beside.
 
 **Entity.** `distributor_order_prediction_feedback`, migration
 `Migration20260919083820_distributor_workspace.ts`. `product_key` (`variant:<id>` / `product:<id>`)
@@ -249,3 +283,15 @@ proposal carrying a price the customer's browser calculated would be an invitati
   comparison, source orders shown under every predicted line, grouping by company, undo for every
   operator note, Polish pluralisation and weekday cases, and the bounded overdue rule replacing
   `staleIntervalFactor`.
+- 2026-09-19 — Weekday evidence on both surfaces and a delivery-weekday filter: the customer card's
+  history dates carry their weekday and its lines the `(16/22)` hit count, the cross-customer page
+  gained weekday chips with per-day delivery counts (client-side, so the counts stay readable while
+  a day is switched off) and `GET .../order-forecast/upcoming?weekdays=2,5` narrows list and CSV
+  alike. `TC-DIST-ORDER-FORECAST-001` was rewritten onto the basket response shape it had drifted
+  from, and now asserts the weekday travels with the delivery.
+- 2026-09-19 — The weekday made load-bearing: a habitual weekday now snaps dates without needing the
+  7-day grid, the customer's order calendar (`rhythm.orderWeekdays`, `weekdayCalendarMinOrders`)
+  keeps every projected date and basket anchor off weekdays they never order on, and the predicted
+  orders page shows the evidence for it — the weekday beside every past purchase and
+  "najczęściej w <dzień> (5/6)" beside every line, with the weekday also in the CSV export. Dates on
+  both surfaces render in UTC, so the weekday label and the date beside it can no longer disagree.

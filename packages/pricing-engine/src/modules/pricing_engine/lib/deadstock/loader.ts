@@ -38,6 +38,9 @@ export const MAX_PRODUCTS = 5000
 
 const ORDER_STATUSES_THAT_ARE_NOT_SALES = ['canceled', 'cancelled', 'rejected', 'draft']
 
+/** Above this many ids an `in (...)` list costs more to parse than it saves in rows. */
+const PRODUCT_ID_FILTER_LIMIT = 500
+
 export type DeadstockScope = { organizationId: string; tenantId: string }
 
 export type DeadstockLoadOptions = {
@@ -119,6 +122,13 @@ export type DeadstockLoadResult = {
   warehouse: WarehouseCostSnapshot | null
   /** True when the catalogue was larger than `MAX_PRODUCTS` and the tail was not computed. */
   truncated: boolean
+  /**
+   * Products in the catalogue, whether or not any of them is stocked.
+   *
+   * Positions are built only for stocked products (see `resolveStockedProductIds`), so the count
+   * of positions no longer answers "how big is the catalogue" and the screen needs both numbers.
+   */
+  catalogCount: number
   warnings: string[]
 }
 
@@ -210,6 +220,7 @@ export async function loadDeadstock(
       policy,
       warehouse: null,
       truncated: false,
+      catalogCount: 0,
       warnings: ['pricing_engine.deadstock.warnings.catalogUnavailable'],
     }
   }
@@ -224,9 +235,21 @@ export async function loadDeadstock(
   const scoped = truncated ? products.slice(0, MAX_PRODUCTS) : products
   if (truncated) warnings.push('pricing_engine.deadstock.warnings.catalogTruncated')
 
-  const productIds = scoped.map((product) => product.id)
+  const catalogCount = scoped.length
+
+  // Deadstock is a question about capital sitting on a shelf, so only stocked products can answer
+  // it. Building a full position for every product in the catalogue meant loading the sales,
+  // receipts and snapshots of ~2 600 products that hold nothing — on the reference tenant 1 494
+  // variants carry stock out of 4 105. Where the warehouse module is absent, or the caller named
+  // products explicitly, nothing is narrowed and the behaviour is what it always was.
+  const stockedProductIds = requested ? null : await resolveStockedProductIds(em, container, scope)
+  const stockedProducts = stockedProductIds
+    ? scoped.filter((product) => stockedProductIds.has(product.id))
+    : scoped
+
+  const productIds = stockedProducts.map((product) => product.id)
   if (productIds.length === 0) {
-    return { positions: [], asOf, historyStartsAt, policy, warehouse: null, truncated, warnings }
+    return { positions: [], asOf, historyStartsAt, policy, warehouse: null, truncated, catalogCount, warnings }
   }
 
   const variantClass = tryResolve<ClassLike>(container, 'CatalogProductVariant')
@@ -282,7 +305,7 @@ export async function loadDeadstock(
   }
 
   const positions: DeadstockPosition[] = []
-  for (const product of scoped) {
+  for (const product of stockedProducts) {
     const snapshot: CatalogProductSnapshot | null = catalog.byProductId.get(product.id) ?? null
     const stock = inventory.byProductId.get(product.id) ?? null
     const onHandQuantity = stock ? toDecimal(stock.rotation.onHandQuantity) : ZERO
@@ -380,6 +403,7 @@ export async function loadDeadstock(
     asOf,
     historyStartsAt,
     policy,
+    catalogCount,
     warehouse,
     truncated,
     warnings: Array.from(new Set(warnings)),
@@ -405,6 +429,241 @@ async function loadSalesRows(
   const lineClass = tryResolve<ClassLike>(container, 'SalesOrderLine')
   if (!orderClass || !lineClass) return new Map()
 
+  const tables = resolveSalesTableNames(em, orderClass, lineClass)
+  if (tables) return loadSalesRowsFromSql(em, scope, productIds, since, tables)
+  return loadSalesRowsThroughOrm(em, orderClass, lineClass, scope, productIds, since)
+}
+
+/**
+ * Table names for the sales entities, read off the ORM metadata rather than written here.
+ *
+ * The classes themselves still come from DI (`tryResolve` above), so a build without the sales
+ * module keeps behaving as it always did — no orders, no rows. This only avoids hard-coding the
+ * names of another module's tables while the rows are read as plain SQL.
+ */
+/**
+ * Products that hold stock right now.
+ *
+ * Matches the route's own definition of "stocked" — `onHandQuantity !== '0.0000'` — which sums
+ * `quantity_on_hand` across the product's balance rows and does not subtract reservations. A
+ * negative sum counts: it is a real position that needs looking at, not an empty shelf.
+ *
+ * Returns null when the warehouse tables cannot be named, so the caller keeps the whole catalogue
+ * rather than silently reporting an empty warehouse.
+ *
+ * Exported for its own tests: this decides which products reach the screen at all.
+ */
+export async function resolveStockedProductIds(
+  em: EntityManager,
+  container: { resolve: (name: string) => unknown },
+  scope: DeadstockScope,
+): Promise<Set<string> | null> {
+  const balanceClass = tryResolve<ClassLike>(container, 'InventoryBalance')
+  const variantClass = tryResolve<ClassLike>(container, 'CatalogProductVariant')
+  if (!balanceClass || !variantClass) return null
+  const balances = resolveTableName(em, balanceClass)
+  const variants = resolveTableName(em, variantClass)
+  if (!balances || !variants) return null
+
+  try {
+    const rows = await em.getConnection().execute<Array<{ product_id: string | null }>>(
+      `select v.product_id as product_id
+       from ${balances} b
+       join ${variants} v
+         on v.id = b.catalog_variant_id
+        and v.deleted_at is null
+       where b.organization_id = ?
+         and b.tenant_id = ?
+         and b.deleted_at is null
+       group by v.product_id
+       having sum(coalesce(b.quantity_on_hand, 0)) <> 0`,
+      [scope.organizationId, scope.tenantId],
+    )
+    const ids = new Set<string>()
+    for (const row of rows) if (row.product_id) ids.add(row.product_id)
+    return ids
+  } catch {
+    return null
+  }
+}
+
+function resolveTableName(em: EntityManager, entityClass: ClassLike): string | null {
+  try {
+    const metadata = (em as unknown as {
+      getMetadata?: () => { find?: (name: string) => { tableName?: string } | undefined }
+    }).getMetadata?.()
+    const table = metadata?.find?.(entityClass.name)?.tableName
+    return typeof table === 'string' && table ? table : null
+  } catch {
+    return null
+  }
+}
+
+function resolveSalesTableNames(
+  em: EntityManager,
+  orderClass: ClassLike,
+  lineClass: ClassLike,
+): { orders: string; lines: string } | null {
+  const orders = resolveTableName(em, orderClass)
+  const lines = resolveTableName(em, lineClass)
+  return orders && lines ? { orders, lines } : null
+}
+
+type ReceiptRangeSqlRow = {
+  catalog_variant_id: string | null
+  first_at: Date | string | null
+  last_at: Date | string | null
+}
+
+/**
+ * The same two ends, aggregated by the database.
+ *
+ * Every receipt movement of every variant used to be hydrated to compute a min and a max —
+ * 34 290 entities on the reference tenant for roughly 4 000 answers.
+ */
+export async function loadReceiptRangeFromSql(
+  em: EntityManager,
+  scope: DeadstockScope,
+  variantIds: string[],
+  table: string,
+): Promise<Map<string, { first: Date; last: Date }>> {
+  const range = new Map<string, { first: Date; last: Date }>()
+  if (variantIds.length === 0) return range
+  const wanted = new Set(variantIds)
+  const narrow = variantIds.length <= PRODUCT_ID_FILTER_LIMIT
+  const variantFilter = narrow
+    ? ` and m.catalog_variant_id in (${variantIds.map(() => '?').join(', ')})`
+    : ''
+
+  const rows = await em.getConnection().execute<ReceiptRangeSqlRow[]>(
+    `select m.catalog_variant_id as catalog_variant_id,
+            min(coalesce(m.received_at, m.performed_at)) as first_at,
+            max(coalesce(m.received_at, m.performed_at)) as last_at
+     from ${table} m
+     where m.organization_id = ?
+       and m.tenant_id = ?
+       and m.deleted_at is null
+       and m.type = 'receipt'
+       and m.catalog_variant_id is not null
+       and coalesce(m.received_at, m.performed_at) is not null${variantFilter}
+     group by m.catalog_variant_id`,
+    [scope.organizationId, scope.tenantId, ...(narrow ? variantIds : [])],
+  )
+
+  for (const row of rows) {
+    if (!row.catalog_variant_id) continue
+    if (!narrow && !wanted.has(row.catalog_variant_id)) continue
+    const first = toDateOrNull(row.first_at)
+    const last = toDateOrNull(row.last_at)
+    if (!first || !last) continue
+    range.set(row.catalog_variant_id, { first, last })
+  }
+  return range
+}
+
+function toDateOrNull(value: Date | string | null): Date | null {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+type SalesSqlRow = {
+  product_id: string | null
+  order_id: string | null
+  customer_entity_id: string | null
+  occurred_at: Date | string | null
+  quantity: string | number | null
+  total_net_amount: string | number | null
+}
+
+/**
+ * One statement, plain rows.
+ *
+ * The ORM path below hydrates an entity per order and per line — fourteen months of a
+ * distributor's trading is 6.5k orders and 87k lines on the reference tenant, and building that
+ * many managed entities (plus their identity map) is what made this screen hold a pool connection
+ * for twenty seconds and starve the rest of the dashboard. `computeSalesMetrics` only ever reads
+ * the six fields below.
+ *
+ * Exported for its own tests: the statement decides which orders count as sales and which rows
+ * reach the metrics, and it is not reachable from `loadDeadstockPositions` without standing up
+ * the catalogue and inventory loaders too.
+ */
+export async function loadSalesRowsFromSql(
+  em: EntityManager,
+  scope: DeadstockScope,
+  productIds: string[],
+  since: Date,
+  tables: { orders: string; lines: string },
+): Promise<Map<string, DeadstockSalesRow[]>> {
+  if (productIds.length === 0) return new Map()
+  const wanted = new Set(productIds)
+  const statusPlaceholders = ORDER_STATUSES_THAT_ARE_NOT_SALES.map(() => '?').join(', ')
+  // Narrowing by product id pays only while the list is short. Asked for the whole catalogue it
+  // would be thousands of placeholders for a filter that excludes nothing, so the set does the
+  // work in the loop below instead.
+  const narrowByProduct = productIds.length <= PRODUCT_ID_FILTER_LIMIT
+  const productFilter = narrowByProduct
+    ? ` and l.product_id in (${productIds.map(() => '?').join(', ')})`
+    : ' and l.product_id is not null'
+  const rows = await em.getConnection().execute<SalesSqlRow[]>(
+    `select l.product_id as product_id,
+            o.id as order_id,
+            o.customer_entity_id as customer_entity_id,
+            coalesce(o.placed_at, o.created_at) as occurred_at,
+            l.quantity as quantity,
+            l.total_net_amount as total_net_amount
+     from ${tables.orders} o
+     join ${tables.lines} l
+       on l.order_id = o.id
+      and l.organization_id = o.organization_id
+      and l.tenant_id = o.tenant_id
+      and l.deleted_at is null
+      and l.kind = 'product'
+     where o.organization_id = ?
+       and o.tenant_id = ?
+       and o.deleted_at is null
+       and lower(coalesce(o.status, '')) not in (${statusPlaceholders})
+       and coalesce(o.placed_at, o.created_at) >= ?${productFilter}`,
+    [
+      scope.organizationId,
+      scope.tenantId,
+      ...ORDER_STATUSES_THAT_ARE_NOT_SALES,
+      since,
+      ...(narrowByProduct ? productIds : []),
+    ],
+  )
+
+  const collected: DeadstockSalesRow[] = []
+  for (const row of rows) {
+    if (!row.product_id || !row.order_id || !row.occurred_at) continue
+    if (!narrowByProduct && !wanted.has(row.product_id)) continue
+    const occurredAt = row.occurred_at instanceof Date ? row.occurred_at : new Date(row.occurred_at)
+    if (!Number.isFinite(occurredAt.getTime())) continue
+    collected.push({
+      productId: row.product_id,
+      orderId: row.order_id,
+      customerId: row.customer_entity_id ?? null,
+      occurredAt,
+      quantity: row.quantity === null || row.quantity === undefined ? '0' : String(row.quantity),
+      revenueNet:
+        row.total_net_amount === null || row.total_net_amount === undefined
+          ? '0'
+          : String(row.total_net_amount),
+    })
+  }
+  return groupSalesRowsByProduct(collected)
+}
+
+/** Kept for a container whose ORM metadata cannot name the sales tables. */
+async function loadSalesRowsThroughOrm(
+  em: EntityManager,
+  orderClass: ClassLike,
+  lineClass: ClassLike,
+  scope: DeadstockScope,
+  productIds: string[],
+  since: Date,
+): Promise<Map<string, DeadstockSalesRow[]>> {
   const scopeFilter = { tenantId: scope.tenantId, organizationId: scope.organizationId, deletedAt: null }
 
   const orders = (await em.find(orderClass, {
@@ -468,6 +727,9 @@ async function loadReceiptRange(
 
   const movementClass = tryResolve<ClassLike>(container, 'InventoryMovement')
   if (!movementClass) return range
+
+  const table = resolveTableName(em, movementClass)
+  if (table) return loadReceiptRangeFromSql(em, scope, variantIds, table)
 
   const movements = (await em.find(movementClass, {
     tenantId: scope.tenantId,

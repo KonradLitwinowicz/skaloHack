@@ -25,6 +25,7 @@ import {
   toDecimalOrNull,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/vehicles`.
@@ -109,6 +110,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, VehicleListQuery>({
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('vehicle'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingVehicle, VehicleRow>(payload, ctx.query, {
         mapItem: toVehicleRow,

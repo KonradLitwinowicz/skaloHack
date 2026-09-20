@@ -66,6 +66,7 @@ export type OrderForecastOptions = {
   supportSaturation: number
   weekdayShareThreshold: number
   weeklyGridToleranceDays: number
+  weekdayCalendarMinOrders: number
   minConfidence: number
   maxConfidence: number
   maxPredictions: number
@@ -98,6 +99,14 @@ export type OrderForecastOptions = {
  * alone would let a 40-day rhythm go unordered for over three months and still be presented as
  * something about to arrive, which is not a prediction anybody can act on.
  *
+ * The weekday is treated as evidence in its own right, not as a decoration on the date.
+ * `weekdayShareThreshold: 0.6` is what makes a habitual weekday hold — and it holds whether or not
+ * the interval sits on a clean 7-day grid, because a customer who orders every nine days but always
+ * on a Tuesday has a Tuesday habit that a pure interval step would walk straight off.
+ * `weekdayCalendarMinOrders: 12` guards the weaker weekday rule underneath it: a weekday missing
+ * from six orders is missing by chance, and constraining a date to that sample would invent a habit
+ * out of noise. Missing from twelve, it is a day this customer does not receive on.
+ *
  * Every threshold is passed through `resolveForecastOptions`, so a caller — a tenant setting, an
  * A/B run, a test — overrides one value without forking the rest.
  */
@@ -113,6 +122,7 @@ export const DEFAULT_FORECAST_OPTIONS: OrderForecastOptions = {
   supportSaturation: 8,
   weekdayShareThreshold: 0.6,
   weeklyGridToleranceDays: 1.5,
+  weekdayCalendarMinOrders: 12,
   minConfidence: 0.35,
   maxConfidence: 0.97,
   maxPredictions: 25,
@@ -223,6 +233,8 @@ export type CustomerOrderRhythm = {
   intervalSpreadDays: number | null
   dominantWeekday: number | null
   weekdayShare: number
+  /** Every ISO weekday this customer has actually placed an order on, ascending. */
+  orderWeekdays: number[]
   nextExpectedOrderAt: string | null
   daysUntilNextOrder: number | null
   orderOverdueDays: number
@@ -399,6 +411,7 @@ type CadenceAnalysis = {
   dominantWeekday: number
   weekdayHits: number
   weekdayShare: number
+  weekdayAligned: boolean
   isWeekly: boolean
 }
 
@@ -433,7 +446,8 @@ function analyseCadence(dayValues: number[], options: OrderForecastOptions): Cad
 
   const nearestWeekMultiple = Math.max(1, Math.round(medianIntervalDays / 7))
   const gridDistance = Math.abs(medianIntervalDays - nearestWeekMultiple * 7)
-  const isWeekly = weekdayShare >= options.weekdayShareThreshold && gridDistance <= options.weeklyGridToleranceDays
+  const weekdayAligned = weekdayShare >= options.weekdayShareThreshold
+  const isWeekly = weekdayAligned && gridDistance <= options.weeklyGridToleranceDays
 
   return {
     intervals,
@@ -443,6 +457,7 @@ function analyseCadence(dayValues: number[], options: OrderForecastOptions): Cad
     dominantWeekday,
     weekdayHits,
     weekdayShare,
+    weekdayAligned,
     isWeekly,
   }
 }
@@ -568,12 +583,69 @@ function bandFor(confidence: number, options: OrderForecastOptions): ConfidenceB
  * 7-day rhythm into an 11-day one; if the projection already lands on the right weekday it is
  * returned untouched.
  */
-function snapToWeekday(dayMs: number, weekday: number): number {
+export function snapToWeekday(dayMs: number, weekday: number): number {
   const current = weekdayOf(dayMs)
   let delta = weekday - current
   if (delta > 3) delta -= 7
   if (delta < -3) delta += 7
   return addDays(dayMs, delta)
+}
+
+/**
+ * Pulls a projected date off a weekday the customer never orders on.
+ *
+ * A rhythm of nine or seventeen days has no single weekday to snap to, but it still has weekdays it
+ * never lands on: a wholesaler whose van does not run at the weekend leaves fourteen months of
+ * history without one Saturday order, and a projection falling there asks an operator to plan a
+ * delivery on a closed day. The move is bounded by half a week and prefers the earlier day when two
+ * are equally close, so a date never drifts later than the rhythm said and one cycle never becomes
+ * the next.
+ */
+export function snapToObservedWeekday(dayMs: number, weekdays: number[]): number {
+  const current = weekdayOf(dayMs)
+  if (weekdays.length === 0 || weekdays.includes(current)) return dayMs
+  let bestDelta: number | null = null
+  for (const weekday of weekdays) {
+    let delta = weekday - current
+    if (delta > 3) delta -= 7
+    if (delta < -3) delta += 7
+    if (
+      bestDelta === null ||
+      Math.abs(delta) < Math.abs(bestDelta) ||
+      (Math.abs(delta) === Math.abs(bestDelta) && delta < bestDelta)
+    ) {
+      bestDelta = delta
+    }
+  }
+  return bestDelta === null ? dayMs : addDays(dayMs, bestDelta)
+}
+
+/**
+ * The weekdays this customer actually places orders on.
+ *
+ * Read from every order in the window rather than from one product's handful of purchases: which
+ * weekday a delivery can land on is a property of the customer's week — their van slot, their
+ * kitchen's quiet day, their office hours — not of the towels. Three purchases cannot tell a
+ * never-used weekday from one they happened to miss, so below `weekdayCalendarMinOrders` orders the
+ * calendar is returned empty and constrains nothing.
+ */
+export function buildOrderWeekdayCalendar(
+  observations: OrderObservation[],
+  options: OrderForecastOptions,
+  todayMs: number,
+): number[] {
+  const horizonMs = addDays(todayMs, -options.lookbackDays)
+  const orderDays = new Map<string, number>()
+  for (const observation of observations) {
+    const dayMs = toDayStart(observation.placedAt)
+    if (!Number.isFinite(dayMs) || dayMs < horizonMs || dayMs > todayMs) continue
+    if (!orderDays.has(observation.orderId)) orderDays.set(observation.orderId, dayMs)
+  }
+  const distinctDays = new Set(orderDays.values())
+  if (distinctDays.size < options.weekdayCalendarMinOrders) return []
+  const weekdays = new Set<number>()
+  for (const dayMs of distinctDays) weekdays.add(weekdayOf(dayMs))
+  return [...weekdays].sort((a, b) => a - b)
 }
 
 /**
@@ -585,16 +657,24 @@ function snapToWeekday(dayMs: number, weekday: number): number {
  * today. Returning the date the delivery was actually due, and letting `overdueDays` say how far
  * past it we are, keeps the two numbers telling the same story — and sorting by that date puts the
  * most overdue rows at the top of the list, where the calls to make are.
+ *
+ * The interval places the date and the weekday corrects it, in that order and never the reverse.
+ * A habitual weekday takes the date onto it — whether or not the interval sits on a clean 7-day
+ * grid, because ordering every nine days but always on a Tuesday is a Tuesday habit. Failing that,
+ * the customer's own order calendar takes the date off a weekday they never use. Both moves are
+ * bounded by half a week, so neither can turn one cycle into the next.
  */
 function projectNextOccurrence(
   lastDayMs: number,
   medianIntervalDays: number,
-  cadence: { isWeekly: boolean; dominantWeekday: number },
+  cadence: { weekdayAligned: boolean; dominantWeekday: number; calendarWeekdays: number[] },
   todayMs: number,
 ): { nextExpectedMs: number; overdueDays: number } {
   const step = Math.max(1, Math.round(medianIntervalDays))
-  let candidate = addDays(lastDayMs, step)
-  if (cadence.isWeekly) candidate = snapToWeekday(candidate, cadence.dominantWeekday)
+  const projected = addDays(lastDayMs, step)
+  const candidate = cadence.weekdayAligned
+    ? snapToWeekday(projected, cadence.dominantWeekday)
+    : snapToObservedWeekday(projected, cadence.calendarWeekdays)
   return {
     nextExpectedMs: candidate,
     overdueDays: candidate < todayMs ? dayDiff(todayMs, candidate) : 0,
@@ -638,6 +718,7 @@ export function buildOrderForecast(input: BuildOrderForecastInput): OrderForecas
   const feedback = input.feedback ?? []
   const calibrationFactor = calibrationFactorFor(input.calibration, options)
 
+  const calendarWeekdays = buildOrderWeekdayCalendar(input.observations, options, todayMs)
   const series = groupObservations(input.observations, options, todayMs)
   const predictions: OrderPrediction[] = []
   const rejected: RejectedPrediction[] = []
@@ -717,7 +798,7 @@ export function buildOrderForecast(input: BuildOrderForecastInput): OrderForecas
     const projection = projectNextOccurrence(
       lastMs,
       cadence.medianIntervalDays,
-      { isWeekly: cadence.isWeekly, dominantWeekday: cadence.dominantWeekday },
+      { weekdayAligned: cadence.weekdayAligned, dominantWeekday: cadence.dominantWeekday, calendarWeekdays },
       todayMs,
     )
 
@@ -741,7 +822,7 @@ export function buildOrderForecast(input: BuildOrderForecastInput): OrderForecas
       cadence: {
         kind: cadence.isWeekly ? 'weekly' : 'interval',
         intervalDays: cadence.medianIntervalDays,
-        dominantWeekday: cadence.isWeekly ? cadence.dominantWeekday : null,
+        dominantWeekday: cadence.weekdayAligned ? cadence.dominantWeekday : null,
         weekdayShare: cadence.weekdayShare,
         weekdayHits: cadence.weekdayHits,
       },
@@ -783,7 +864,7 @@ export function buildOrderForecast(input: BuildOrderForecastInput): OrderForecas
   })
 
   return {
-    rhythm: buildCustomerRhythm(input.observations, options, todayMs),
+    rhythm: buildCustomerRhythm(input.observations, options, todayMs, calendarWeekdays),
     predictions: predictions.slice(0, options.maxPredictions),
     rejected,
     options,
@@ -802,6 +883,7 @@ function buildCustomerRhythm(
   observations: OrderObservation[],
   options: OrderForecastOptions,
   todayMs: number,
+  calendarWeekdays: number[],
 ): CustomerOrderRhythm {
   const horizonMs = addDays(todayMs, -options.lookbackDays)
   const orderTotals = new Map<string, { dayMs: number; netAmount: number; currencyCode: string | null }>()
@@ -826,6 +908,7 @@ function buildCustomerRhythm(
     intervalSpreadDays: null,
     dominantWeekday: null,
     weekdayShare: 0,
+    orderWeekdays: calendarWeekdays,
     nextExpectedOrderAt: null,
     daysUntilNextOrder: null,
     orderOverdueDays: 0,
@@ -856,7 +939,7 @@ function buildCustomerRhythm(
   const projection = projectNextOccurrence(
     lastOrder.dayMs,
     cadence.medianIntervalDays,
-    { isWeekly: cadence.isWeekly, dominantWeekday: cadence.dominantWeekday },
+    { weekdayAligned: cadence.weekdayAligned, dominantWeekday: cadence.dominantWeekday, calendarWeekdays },
     todayMs,
   )
 
@@ -864,7 +947,7 @@ function buildCustomerRhythm(
     ...base,
     medianIntervalDays: cadence.medianIntervalDays,
     intervalSpreadDays: cadence.intervalSpreadDays,
-    dominantWeekday: cadence.isWeekly ? cadence.dominantWeekday : null,
+    dominantWeekday: cadence.weekdayAligned ? cadence.dominantWeekday : null,
     weekdayShare: cadence.weekdayShare,
     nextExpectedOrderAt: toIsoDate(projection.nextExpectedMs),
     daysUntilNextOrder: dayDiff(projection.nextExpectedMs, todayMs),

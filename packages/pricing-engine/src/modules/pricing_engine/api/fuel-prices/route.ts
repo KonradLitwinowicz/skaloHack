@@ -24,6 +24,7 @@ import {
   toIso,
   type PricingListPayload,
   type PricingRawBody,
+  pricingParameterEventHooks,
 } from '../../lib/crud/pricingCrudRoute'
 
 // Pinned path: the auto-derived value would be `/pricing-engine/fuel-prices`.
@@ -85,6 +86,7 @@ const crud = makeCrudRoute<PricingRawBody, PricingRawBody, FuelPriceListQuery>({
     },
   },
   hooks: {
+    ...pricingParameterEventHooks('fuel_price'),
     afterList: (payload: PricingListPayload, ctx) => {
       finalizePricingList<PricingFuelPrice, FuelPriceRow>(payload, ctx.query, {
         mapItem: toFuelPriceRow,

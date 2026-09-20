@@ -16,6 +16,9 @@ export type PricingBasketLine = {
   quantity: string
   enteredQuantity?: string | null
   enteredUnitCode?: string | null
+  // Purchase cost the caller already holds for this line (the invoice cost on a re-priced
+  // document). `product_cost` takes it verbatim; absent, the last delivery is used.
+  purchaseUnitCostNet?: string | null
 }
 
 export type PricingContext = {
